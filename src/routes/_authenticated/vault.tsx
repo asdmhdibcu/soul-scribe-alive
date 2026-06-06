@@ -327,19 +327,28 @@ function VaultPage() {
         >
           <button
             type="button"
-            onClick={() => setMemOpen((v) => !v)}
+            onClick={() => {
+              if (!canMemorySearch) return;
+              setMemOpen((v) => !v);
+            }}
             className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
           >
             <Sparkles className="h-4 w-4 text-gold-light" />
             <span className="text-sm tracking-wide text-gold-light italic">
               Ask your memory anything
             </span>
-            <span className="ml-auto text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-              {memOpen ? "Close" : "Open"}
+            <span className="ml-auto flex items-center gap-2">
+              {!canMemorySearch ? (
+                <InlineLock required="soul" />
+              ) : (
+                <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                  {memOpen ? "Close" : "Open"}
+                </span>
+              )}
             </span>
           </button>
           <AnimatePresence initial={false}>
-            {memOpen && (
+            {memOpen && canMemorySearch && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
