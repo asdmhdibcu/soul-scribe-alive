@@ -83,6 +83,12 @@ function VaultPage() {
   const [memAnswer, setMemAnswer] = useState<string | null>(null);
   const [memLoading, setMemLoading] = useState(false);
   const ask = useServerFn(askMemory);
+  const { can } = usePlan();
+  const vaultCapDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - FREE_LIMITS.vault_days);
+    return d.toISOString().slice(0, 10);
+  }, []);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
