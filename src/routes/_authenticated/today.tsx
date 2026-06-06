@@ -5,24 +5,41 @@ import { ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
+import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "done";
+type Screen = "portal" | "mood" | "cards" | "done";
 
 type SessionState = {
   mood_x: number;
   mood_y: number;
   mood_color: string;
   mood_label: string;
+  cards_swiped?: SwipeResult[];
 };
 
 function TodayPage() {
+  const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>("portal");
   const [session, setSession] = useState<SessionState | null>(null);
+  const [streak, setStreak] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const { data } = await supabase
+        .from("users")
+        .select("streak")
+        .eq("id", u.user.id)
+        .maybeSingle();
+      setStreak(data?.streak ?? 0);
+    })();
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-background text-foreground overflow-hidden isolate">
@@ -52,6 +69,25 @@ function TodayPage() {
             <MoodScreen
               onConfirm={(s) => {
                 setSession(s);
+                setScreen("cards");
+              }}
+            />
+          </motion.div>
+        )}
+        {screen === "cards" && (
+          <motion.div
+            key="cards"
+            className="absolute inset-0"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45 }}
+          >
+            <SparkCards
+              streak={streak}
+              onExit={() => navigate({ to: "/" })}
+              onComplete={(results) => {
+                setSession((s) => (s ? { ...s, cards_swiped: results } : s));
                 setScreen("done");
               }}
             />
@@ -72,6 +108,7 @@ function TodayPage() {
     </div>
   );
 }
+
 
 /* ────────────────────────────── BACKGROUND ────────────────────────────── */
 function BackgroundAtmos() {
