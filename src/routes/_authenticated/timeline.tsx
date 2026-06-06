@@ -4,6 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { BookMarked, Sparkles } from "lucide-react";
 import { generateTimeline } from "@/lib/timeline.functions";
+import { usePlan } from "@/lib/plan";
+import { UpgradeGate } from "@/components/UpgradeGate";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
   head: () => ({ meta: [{ title: "Life Timeline — ALIVE" }] }),
@@ -43,12 +45,25 @@ function groupByYear(chapters: Chapter[]) {
 }
 
 function TimelinePage() {
+  const { can, loading: planLoading } = usePlan();
   const fetchTimeline = useServerFn(generateTimeline);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["life-timeline"],
     queryFn: () => fetchTimeline(),
     staleTime: 1000 * 60 * 30,
+    enabled: can("timeline"),
   });
+
+  if (planLoading) return <div className="p-10 text-center text-muted-foreground">…</div>;
+  if (!can("timeline")) {
+    return (
+      <UpgradeGate
+        feature="Life Timeline"
+        required="soul"
+        description="Turn years of entries into the chapters of your life."
+      />
+    );
+  }
 
   const chapters = (data?.chapters ?? []) as Chapter[];
   const photos = (data?.photos ?? {}) as Record<string, string[]>;
