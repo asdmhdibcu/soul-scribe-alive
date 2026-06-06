@@ -410,7 +410,7 @@ function VaultPage() {
             entry={activeEntry}
             onClose={() => setActiveEntry(null)}
             onDelete={() => setConfirmDelete(activeEntry.id)}
-            onToggleSale={() => toggleSale(activeEntry)}
+            
           />
         )}
       </AnimatePresence>
