@@ -336,7 +336,26 @@ function TodayPage() {
               onBack={() => setScreen("memory")}
               onComplete={(a) => {
                 setSession((s) => (s ? { ...s, answer: a } : s));
-                void startGeneration(a);
+                setScreen("story");
+              }}
+            />
+          </motion.div>
+        )}
+        {screen === "story" && session && (
+          <motion.div
+            key="story"
+            className="absolute inset-0"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.45 }}
+          >
+            <MyStory
+              initial={session.story}
+              onBack={() => setScreen("question")}
+              onContinue={(story) => {
+                setSession((s) => (s ? { ...s, story } : s));
+                void startGeneration(story);
               }}
             />
           </motion.div>
