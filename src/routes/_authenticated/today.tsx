@@ -12,6 +12,13 @@ import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestio
 import { GenerationChamber } from "@/components/session/GenerationChamber";
 import { DiaryPage } from "@/components/session/DiaryPage";
 import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
+import {
+  loadDraft,
+  saveDraft,
+  clearDraft,
+  flushDraftBeacon,
+  type DraftStep,
+} from "@/lib/drafts";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
@@ -39,7 +46,21 @@ function TodayPage() {
   const [aiTone, setAiTone] = useState<string | null>(null);
   const [userName, setUserName] = useState("friend");
   const [diary, setDiary] = useState<DiaryResult | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState<null | {
+    step: DraftStep;
+    session: SessionState;
+    answer?: AnswerPayload;
+    updated_at: string;
+  }>(null);
+  const [recoveredBanner, setRecoveredBanner] = useState(false);
   const generate = useServerFn(generateDiary);
+
+  // Active session = anything past the portal but before the diary is saved.
+  const inSession =
+    screen === "mood" ||
+    screen === "cards" ||
+    screen === "memory" ||
+    screen === "question";
 
   useEffect(() => {
     (async () => {
@@ -53,8 +74,126 @@ function TodayPage() {
       setStreak(data?.streak ?? 0);
       setAiTone(data?.ai_tone ?? null);
       setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
+
+      // Look for an unfinished draft and offer to resume
+      const draft = await loadDraft();
+      if (draft && draft.mood_data) {
+        const s: SessionState = {
+          mood_x: draft.mood_data.x,
+          mood_y: draft.mood_data.y,
+          mood_color: draft.mood_data.color,
+          mood_label: draft.mood_data.label,
+          cards_swiped: (draft.spark_cards as SwipeResult[] | null) ?? undefined,
+          memory: {
+            photos: draft.photos ?? [],
+            voice_url: null,
+            voice_transcript: draft.voice_transcript ?? "",
+            one_sentence: draft.one_sentence ?? "",
+          } satisfies MemoryPayload,
+          answer: draft.one_question_answer
+            ? ({
+                question: draft.one_question_answer.question,
+                answer_text: draft.one_question_answer.answer_text,
+              } as AnswerPayload)
+            : undefined,
+        };
+        const allowed: DraftStep[] = ["mood", "cards", "memory", "question"];
+        const step = allowed.includes(draft.current_step) ? draft.current_step : "mood";
+        setDraftPrompt({ step, session: s, answer: s.answer, updated_at: draft.updated_at });
+      }
     })();
   }, []);
+
+  // Auto-save: on screen/session change AND every 10s while in session.
+  useEffect(() => {
+    if (!inSession || !session) return;
+    const snapshot = () => ({
+      current_step: screen as DraftStep,
+      mood_data: {
+        x: session.mood_x,
+        y: session.mood_y,
+        color: session.mood_color,
+        label: session.mood_label,
+      },
+      spark_cards: session.cards_swiped ?? [],
+      photos: session.memory?.photos ?? [],
+      voice_transcript: session.memory?.voice_transcript ?? null,
+      one_sentence: session.memory?.one_sentence ?? null,
+      one_question_answer: session.answer
+        ? {
+            question: session.answer.question ?? "",
+            answer_text: session.answer.answer_text ?? "",
+          }
+        : null,
+    });
+    // Save immediately on dependency change
+    void saveDraft(snapshot());
+    // Tick every 10s
+    const id = window.setInterval(() => void saveDraft(snapshot()), 10_000);
+    return () => window.clearInterval(id);
+  }, [inSession, screen, session]);
+
+  // Auto-save on browser close / tab background.
+  useEffect(() => {
+    if (!inSession || !session) return;
+    const buildPayload = async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      return {
+        user_id: u.user.id,
+        current_step: screen as DraftStep,
+        mood_data: {
+          x: session.mood_x,
+          y: session.mood_y,
+          color: session.mood_color,
+          label: session.mood_label,
+        },
+        spark_cards: session.cards_swiped ?? [],
+        photos: session.memory?.photos ?? [],
+        voice_transcript: session.memory?.voice_transcript ?? null,
+        one_sentence: session.memory?.one_sentence ?? null,
+        one_question_answer: session.answer
+          ? {
+              question: session.answer.question ?? "",
+              answer_text: session.answer.answer_text ?? "",
+            }
+          : null,
+      };
+    };
+    const onHide = () => {
+      void buildPayload().then((p) => p && flushDraftBeacon(p));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [inSession, screen, session]);
+
+  // Clear draft once diary is generated & shown.
+  useEffect(() => {
+    if (screen === "diary") void clearDraft();
+  }, [screen]);
+
+  function resumeDraft() {
+    if (!draftPrompt) return;
+    setSession(draftPrompt.session);
+    setScreen(draftPrompt.step);
+    setRecoveredBanner(true);
+    setDraftPrompt(null);
+    window.setTimeout(() => setRecoveredBanner(false), 3500);
+  }
+
+  async function discardDraft() {
+    setDraftPrompt(null);
+    await clearDraft();
+  }
 
   async function startGeneration(answer: AnswerPayload) {
     const s = session;
@@ -227,9 +366,95 @@ function TodayPage() {
         )}
 
       </AnimatePresence>
+
+      {/* Recovered-from-draft banner */}
+      <AnimatePresence>
+        {recoveredBanner && (
+          <motion.div
+            key="recovered"
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.4 }}
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] px-4 py-2 rounded-full text-[11px] uppercase tracking-[0.3em] text-gold-light"
+            style={{
+              border: "1px solid rgba(240,201,106,0.45)",
+              background: "linear-gradient(160deg, rgba(240,201,106,0.18), rgba(22,22,31,0.85))",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            ✦ Recovered from draft
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Resume-draft modal */}
+      <AnimatePresence>
+        {draftPrompt && (
+          <motion.div
+            key="draft-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/75 px-6"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 280, damping: 28 }}
+              className="rounded-2xl p-7 max-w-sm w-full text-center"
+              style={{
+                background: "linear-gradient(180deg, #16161F, #0E0E16)",
+                border: "1px solid rgba(240,201,106,0.4)",
+                boxShadow: "0 30px 90px -30px rgba(240,201,106,0.4)",
+              }}
+            >
+              <div className="mx-auto h-12 w-12 rounded-full mb-5"
+                style={{
+                  background:
+                    "radial-gradient(circle at 30% 30%, #FFE8A8, #F0C96A 35%, #C9A84C 65%, transparent 100%)",
+                  boxShadow: "0 0 30px rgba(240,201,106,0.5)",
+                }}
+              />
+              <h2 className="font-display text-2xl text-gold-light">
+                Your story is safely saved.
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground italic">
+                {formatRelative(draftPrompt.updated_at)}
+              </p>
+              <div className="mt-6 space-y-3">
+                <GoldButton type="button" onClick={resumeDraft}>
+                  Continue Writing
+                </GoldButton>
+                <button
+                  type="button"
+                  onClick={() => void discardDraft()}
+                  className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-2"
+                >
+                  Start Fresh
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "Saved just now";
+  if (mins < 60) return `Saved ${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Saved ${hrs} hr ago`;
+  const days = Math.round(hrs / 24);
+  return `Saved ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 
 
 
