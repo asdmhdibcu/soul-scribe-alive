@@ -48,6 +48,7 @@ const TONES = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const awardCoinsFn = useServerFn(awardCoins);
   const [step, setStep] = useState(0);
   const [name, setName] = useState<string>("friend");
   const [intents, setIntents] = useState<string[]>([]);
