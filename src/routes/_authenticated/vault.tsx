@@ -241,21 +241,6 @@ function VaultPage() {
     }
   }
 
-  async function toggleSale(entry: Entry) {
-    const next = entry.price == null ? 1 : null;
-    const { error } = await supabase
-      .from("diary_entries")
-      .update({ price: next, is_private: next == null })
-      .eq("id", entry.id);
-    if (error) {
-      toast.error("Could not update.");
-      return;
-    }
-    const updated = { ...entry, price: next, is_private: next == null };
-    setEntries((prev) => prev.map((e) => (e.id === entry.id ? updated : e)));
-    setActiveEntry(updated);
-    toast.success(next == null ? "Returned to your vault." : "Listed for sale.");
-  }
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
