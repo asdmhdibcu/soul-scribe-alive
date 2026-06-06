@@ -464,11 +464,13 @@ export type Database = {
       }
       users: {
         Row: {
+          ai_tone: string | null
           avatar_url: string | null
           coins: number
           created_at: string
           email: string | null
           id: string
+          intents: Json
           level: number
           longest_streak: number
           name: string | null
@@ -481,11 +483,13 @@ export type Database = {
           total_sessions: number
         }
         Insert: {
+          ai_tone?: string | null
           avatar_url?: string | null
           coins?: number
           created_at?: string
           email?: string | null
           id: string
+          intents?: Json
           level?: number
           longest_streak?: number
           name?: string | null
@@ -498,11 +502,13 @@ export type Database = {
           total_sessions?: number
         }
         Update: {
+          ai_tone?: string | null
           avatar_url?: string | null
           coins?: number
           created_at?: string
           email?: string | null
           id?: string
+          intents?: Json
           level?: number
           longest_streak?: number
           name?: string | null
