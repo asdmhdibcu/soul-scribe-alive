@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { GoldParticles } from "@/components/landing/atmos";
+import { useServerFn } from "@tanstack/react-start";
+import { awardCoins } from "@/lib/coins.functions";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "Welcome — ALIVE" }] }),
