@@ -26,10 +26,13 @@ function AuthedLayout() {
           </Link>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link to="/today" className="hover:text-gold-light transition-colors">Today</Link>
+            <Link to="/vault" className="hover:text-gold-light transition-colors">Vault</Link>
+            <Link to="/insights" className="hover:text-gold-light transition-colors">Insights</Link>
             <button onClick={signOut} className="hover:text-gold-light transition-colors">
               Sign out
             </button>
           </nav>
+
         </div>
       </header>
       <main className="flex-1">
