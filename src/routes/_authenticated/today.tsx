@@ -6,13 +6,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
+import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop";
+import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "cards" | "done";
+type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "done";
 
 type SessionState = {
   mood_x: number;
@@ -20,6 +22,8 @@ type SessionState = {
   mood_color: string;
   mood_label: string;
   cards_swiped?: SwipeResult[];
+  memory?: MemoryPayload;
+  answer?: AnswerPayload;
 };
 
 function TodayPage() {
@@ -27,6 +31,7 @@ function TodayPage() {
   const [screen, setScreen] = useState<Screen>("portal");
   const [session, setSession] = useState<SessionState | null>(null);
   const [streak, setStreak] = useState(0);
+  const [aiTone, setAiTone] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -34,10 +39,11 @@ function TodayPage() {
       if (!u.user) return;
       const { data } = await supabase
         .from("users")
-        .select("streak")
+        .select("streak, ai_tone")
         .eq("id", u.user.id)
         .maybeSingle();
       setStreak(data?.streak ?? 0);
+      setAiTone(data?.ai_tone ?? null);
     })();
   }, []);
 
@@ -88,6 +94,52 @@ function TodayPage() {
               onExit={() => navigate({ to: "/" })}
               onComplete={(results) => {
                 setSession((s) => (s ? { ...s, cards_swiped: results } : s));
+                setScreen("memory");
+              }}
+            />
+          </motion.div>
+        )}
+        {screen === "memory" && (
+          <motion.div
+            key="memory"
+            className="absolute inset-0"
+            initial={{ opacity: 0, x: 30 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.45 }}
+          >
+            <MemoryDrop
+              onBack={() => setScreen("cards")}
+              onContinue={(m) => {
+                setSession((s) => (s ? { ...s, memory: m } : s));
+                setScreen("question");
+              }}
+            />
+          </motion.div>
+        )}
+        {screen === "question" && session && (
+          <motion.div
+            key="question"
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+          >
+            <OneQuestion
+              context={{
+                mood_x: session.mood_x,
+                mood_y: session.mood_y,
+                mood_label: session.mood_label,
+                cards: session.cards_swiped ?? [],
+                one_sentence: session.memory?.one_sentence ?? "",
+                has_photo: (session.memory?.photos.length ?? 0) > 0,
+                has_voice: !!session.memory?.voice_url,
+                ai_tone: aiTone,
+              }}
+              onBack={() => setScreen("memory")}
+              onComplete={(a) => {
+                setSession((s) => (s ? { ...s, answer: a } : s));
                 setScreen("done");
               }}
             />
@@ -108,6 +160,8 @@ function TodayPage() {
     </div>
   );
 }
+
+
 
 
 /* ────────────────────────────── BACKGROUND ────────────────────────────── */
