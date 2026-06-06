@@ -19,6 +19,8 @@ const Input = z.object({
   has_photo: z.boolean().default(false),
   question: z.string().default(""),
   answer: z.string().default(""),
+  personal_notes: z.string().default(""),
+  user_voice_story: z.string().default(""),
   ai_tone: z.string().nullable().optional(),
 });
 
