@@ -501,7 +501,7 @@ function Footer() {
             ALIVE
           </div>
           <p className="mt-3 font-display italic text-muted-foreground">
-            Your story. Your growth. Your life.
+            Your reflection. Your memory. Your legacy.
           </p>
         </div>
         <nav className="flex flex-wrap gap-8 text-sm text-muted-foreground">
