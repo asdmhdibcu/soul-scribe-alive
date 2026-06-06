@@ -815,20 +815,7 @@ function EntryModal({
             </>
           )}
 
-          <div className="mt-10 mb-12 space-y-3">
-            <button
-              type="button"
-              onClick={onToggleSale}
-              className="w-full h-12 rounded-2xl text-sm tracking-[0.18em] uppercase text-gold-light"
-              style={{
-                border: "1px solid rgba(240,201,106,0.45)",
-                background:
-                  "linear-gradient(160deg, rgba(240,201,106,0.12), rgba(22,22,31,0.6))",
-              }}
-            >
-              {entry.price == null ? "💰 List for Sale" : "🔐 Return to Vault"}
-            </button>
-          </div>
+          <div className="mt-10 mb-12" />
         </div>
       </motion.div>
     </motion.div>
