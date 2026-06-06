@@ -16,6 +16,7 @@ import { RefreshCw, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateInsights } from "@/lib/insights.functions";
 import { GoldParticles } from "@/components/landing/atmos";
+import { BecomingSection } from "@/components/insights/BecomingSection";
 
 export const Route = createFileRoute("/_authenticated/insights")({
   component: InsightsPage,
@@ -99,6 +100,7 @@ function InsightsPage() {
         ) : (
           <>
             <ChampionSection scores={scores} />
+            <BecomingSection entries={entries} />
             <MoodLandscape data={chartData} stats={moodStats} entries={entries} />
             <WeeklyPrediction entries={entries} />
             <PatternCards entries={entries} />
