@@ -115,11 +115,11 @@ function OnboardingPage() {
       })
       .eq("id", u.user.id);
 
-    await supabase.from("coins_history").insert({
-      user_id: u.user.id,
-      amount: 50,
-      reason: "Completed onboarding",
-    });
+    try {
+      await awardCoinsFn({ data: { amount: 50, reason: "Completed onboarding" } });
+    } catch (e) {
+      console.error("awardCoins failed", e);
+    }
 
     toast.success("You earned 50 coins! 🌟", {
       description: "Welcome to ALIVE. Your story begins now.",
