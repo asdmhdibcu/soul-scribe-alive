@@ -366,9 +366,95 @@ function TodayPage() {
         )}
 
       </AnimatePresence>
+
+      {/* Recovered-from-draft banner */}
+      <AnimatePresence>
+        {recoveredBanner && (
+          <motion.div
+            key="recovered"
+            initial={{ opacity: 0, y: -16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -16 }}
+            transition={{ duration: 0.4 }}
+            className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] px-4 py-2 rounded-full text-[11px] uppercase tracking-[0.3em] text-gold-light"
+            style={{
+              border: "1px solid rgba(240,201,106,0.45)",
+              background: "linear-gradient(160deg, rgba(240,201,106,0.18), rgba(22,22,31,0.85))",
+              backdropFilter: "blur(8px)",
+            }}
+          >
+            ✦ Recovered from draft
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Resume-draft modal */}
+      <AnimatePresence>
+        {draftPrompt && (
+          <motion.div
+            key="draft-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/75 px-6"
+          >
+            <motion.div
+              initial={{ scale: 0.94, opacity: 0, y: 12 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.94, opacity: 0 }}
+              transition={{ type: "spring", stiffness: 280, damping: 28 }}
+              className="rounded-2xl p-7 max-w-sm w-full text-center"
+              style={{
+                background: "linear-gradient(180deg, #16161F, #0E0E16)",
+                border: "1px solid rgba(240,201,106,0.4)",
+                boxShadow: "0 30px 90px -30px rgba(240,201,106,0.4)",
+              }}
+            >
+              <div className="mx-auto h-12 w-12 rounded-full mb-5"
+                style={{
+                  background:
+                    "radial-gradient(circle at 30% 30%, #FFE8A8, #F0C96A 35%, #C9A84C 65%, transparent 100%)",
+                  boxShadow: "0 0 30px rgba(240,201,106,0.5)",
+                }}
+              />
+              <h2 className="font-display text-2xl text-gold-light">
+                Your story is safely saved.
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground italic">
+                {formatRelative(draftPrompt.updated_at)}
+              </p>
+              <div className="mt-6 space-y-3">
+                <GoldButton type="button" onClick={resumeDraft}>
+                  Continue Writing
+                </GoldButton>
+                <button
+                  type="button"
+                  onClick={() => void discardDraft()}
+                  className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-2"
+                >
+                  Start Fresh
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
+function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const diff = Date.now() - then;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "Saved just now";
+  if (mins < 60) return `Saved ${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `Saved ${hrs} hr ago`;
+  const days = Math.round(hrs / 24);
+  return `Saved ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 
 
 
