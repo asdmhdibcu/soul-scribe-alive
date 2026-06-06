@@ -17,6 +17,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTodayRouteImport } from './routes/_authenticated/today'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedLifeBookRouteImport } from './routes/_authenticated/life-book'
 import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -58,6 +59,11 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLifeBookRoute = AuthenticatedLifeBookRouteImport.update({
+  id: '/life-book',
+  path: '/life-book',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
@@ -70,6 +76,7 @@ export interface FileRoutesByFullPath {
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/today': typeof AuthenticatedTodayRoute
   '/vault': typeof AuthenticatedVaultRoute
@@ -80,6 +87,7 @@ export interface FileRoutesByTo {
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/insights': typeof AuthenticatedInsightsRoute
+  '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
   '/today': typeof AuthenticatedTodayRoute
   '/vault': typeof AuthenticatedVaultRoute
@@ -92,6 +100,7 @@ export interface FileRoutesById {
   '/forgot-password': typeof ForgotPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/insights': typeof AuthenticatedInsightsRoute
+  '/_authenticated/life-book': typeof AuthenticatedLifeBookRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
   '/_authenticated/today': typeof AuthenticatedTodayRoute
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
@@ -104,6 +113,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/reset-password'
     | '/insights'
+    | '/life-book'
     | '/onboarding'
     | '/today'
     | '/vault'
@@ -114,6 +124,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/reset-password'
     | '/insights'
+    | '/life-book'
     | '/onboarding'
     | '/today'
     | '/vault'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/forgot-password'
     | '/reset-password'
     | '/_authenticated/insights'
+    | '/_authenticated/life-book'
     | '/_authenticated/onboarding'
     | '/_authenticated/today'
     | '/_authenticated/vault'
@@ -196,6 +208,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/life-book': {
+      id: '/_authenticated/life-book'
+      path: '/life-book'
+      fullPath: '/life-book'
+      preLoaderRoute: typeof AuthenticatedLifeBookRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/insights': {
       id: '/_authenticated/insights'
       path: '/insights'
@@ -208,6 +227,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
+  AuthenticatedLifeBookRoute: typeof AuthenticatedLifeBookRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
   AuthenticatedTodayRoute: typeof AuthenticatedTodayRoute
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
@@ -215,6 +235,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
+  AuthenticatedLifeBookRoute: AuthenticatedLifeBookRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
   AuthenticatedTodayRoute: AuthenticatedTodayRoute,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,

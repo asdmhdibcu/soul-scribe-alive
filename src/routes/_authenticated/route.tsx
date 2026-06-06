@@ -28,6 +28,7 @@ function AuthedLayout() {
             <Link to="/today" className="hover:text-gold-light transition-colors">Today</Link>
             <Link to="/vault" className="hover:text-gold-light transition-colors">Vault</Link>
             <Link to="/insights" className="hover:text-gold-light transition-colors">Insights</Link>
+            <Link to="/life-book" className="hover:text-gold-light transition-colors">Life Book</Link>
             <button onClick={signOut} className="hover:text-gold-light transition-colors">
               Sign out
             </button>
