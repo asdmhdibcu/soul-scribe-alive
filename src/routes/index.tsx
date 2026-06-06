@@ -284,9 +284,9 @@ function Features() {
       body: "Pattern recognition across months. Predicts your week before it happens.",
     },
     {
-      icon: <Coins className="h-6 w-6" strokeWidth={1.5} />,
-      title: "Your Story Has Value",
-      body: "Monetize your journey. Content creators buy real human stories. You set the price.",
+      icon: <BookOpen className="h-6 w-6" strokeWidth={1.5} />,
+      title: "Annual Life Book",
+      body: "Every year, ALIVE compiles your best entries, memories, mood patterns, and photos into a beautiful digital book.",
     },
   ];
 
