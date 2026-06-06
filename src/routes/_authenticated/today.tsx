@@ -37,6 +37,9 @@ function TodayPage() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [streak, setStreak] = useState(0);
   const [aiTone, setAiTone] = useState<string | null>(null);
+  const [userName, setUserName] = useState("friend");
+  const [diary, setDiary] = useState<DiaryResult | null>(null);
+  const generate = useServerFn(generateDiary);
 
   useEffect(() => {
     (async () => {
@@ -44,13 +47,46 @@ function TodayPage() {
       if (!u.user) return;
       const { data } = await supabase
         .from("users")
-        .select("streak, ai_tone")
+        .select("streak, ai_tone, name")
         .eq("id", u.user.id)
         .maybeSingle();
       setStreak(data?.streak ?? 0);
       setAiTone(data?.ai_tone ?? null);
+      setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
     })();
   }, []);
+
+  async function startGeneration(answer: AnswerPayload) {
+    const s = session;
+    if (!s) return;
+    setScreen("generate");
+    try {
+      const result = await generate({
+        data: {
+          name: userName,
+          mood_x: s.mood_x,
+          mood_y: s.mood_y,
+          mood_label: s.mood_label,
+          mood_color: s.mood_color,
+          cards: (s.cards_swiped ?? []).map((c) => ({ card: c.card, swipe: c.swipe })),
+          one_sentence: s.memory?.one_sentence ?? "",
+          voice_transcript: s.memory?.voice_transcript ?? "",
+          has_photo: (s.memory?.photos.length ?? 0) > 0,
+          question: answer.question ?? "",
+          answer: answer.answer ?? "",
+          ai_tone: aiTone,
+        },
+      });
+      // Hold the chamber for at least 5s of cinematic time
+      await new Promise((r) => setTimeout(r, 1200));
+      setDiary(result);
+      setScreen("diary");
+    } catch (e) {
+      console.error(e);
+      setScreen("diary");
+    }
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 bg-background text-foreground overflow-hidden isolate">
