@@ -415,7 +415,7 @@ function Pricing() {
         "Unlimited family members",
         "Voice of loved ones",
         "Legacy letters",
-        "Content marketplace",
+        "Annual Life Book (digital)",
         "Annual life book PDF",
         "Memory search unlimited",
       ],
