@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValue, useTransform, type PanInfo } from "motion/react";
+import { AnimatePresence, motion, useMotionValue, useTransform, type MotionValue, type PanInfo } from "motion/react";
 import { X, Flame, Check, ArrowRight, Star, ArrowDown } from "lucide-react";
 
 export type Swipe = "right" | "left" | "up" | "down";
@@ -333,7 +333,7 @@ function DirectionOverlay({
   icon,
   label,
 }: {
-  opacity: ReturnType<typeof useTransform>;
+  opacity: MotionValue<number>;
   color: string;
   corner: "tr" | "tl" | "top" | "bottom";
   icon: React.ReactNode;
