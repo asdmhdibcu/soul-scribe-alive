@@ -181,22 +181,51 @@ function TodayPage() {
               onBack={() => setScreen("memory")}
               onComplete={(a) => {
                 setSession((s) => (s ? { ...s, answer: a } : s));
-                setScreen("done");
+                void startGeneration(a);
               }}
             />
           </motion.div>
         )}
-        {screen === "done" && (
+        {screen === "generate" && session && (
           <motion.div
-            key="done"
-            className="absolute inset-0 flex items-center justify-center px-8 text-center"
+            key="generate"
+            className="absolute inset-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <DonePreview session={session} />
+            <GenerationChamber
+              moodColor={session.mood_color}
+              hasPhotos={(session.memory?.photos.length ?? 0) > 0}
+              hasVoice={!!session.memory?.voice_url}
+              hasText={!!(session.memory?.one_sentence ?? "").trim()}
+              cardsCount={session.cards_swiped?.length ?? 0}
+            />
           </motion.div>
         )}
+        {screen === "diary" && session && diary && (
+          <motion.div
+            key="diary"
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <DiaryPage
+              diary={diary}
+              moodColor={session.mood_color}
+              moodX={session.mood_x}
+              moodY={session.mood_y}
+              cards={session.cards_swiped ?? []}
+              photos={session.memory?.photos ?? []}
+              voiceTranscript={session.memory?.voice_transcript ?? ""}
+              oneAnswer={session.answer?.answer_text ?? ""}
+              aiTone={aiTone}
+            />
+          </motion.div>
+        )}
+
       </AnimatePresence>
     </div>
   );
