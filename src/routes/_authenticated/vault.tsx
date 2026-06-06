@@ -131,14 +131,13 @@ function VaultPage() {
         let q = supabase
           .from("diary_entries")
           .select(
-            "id, date, title, content, mood_color, mood_x, mood_y, is_private, price, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
+            "id, date, title, content, mood_color, mood_x, mood_y, is_private, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
           )
           .eq("user_id", u.user.id)
           .order("date", { ascending: false })
           .range(nextPage * PAGE_SIZE, nextPage * PAGE_SIZE + PAGE_SIZE - 1);
 
         if (filter === "private") q = q.eq("is_private", true);
-        if (filter === "sale") q = q.not("price", "is", null);
         if (filter === "month") {
           const first = new Date();
           first.setDate(1);
