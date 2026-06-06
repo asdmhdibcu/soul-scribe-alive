@@ -45,7 +45,7 @@ export function DiaryPage({
     year: "numeric",
   });
 
-  async function save(opts: { sell?: boolean; price?: number; isPrivate?: boolean }) {
+  async function save() {
     if (saving) return;
     setSaving(true);
     try {
