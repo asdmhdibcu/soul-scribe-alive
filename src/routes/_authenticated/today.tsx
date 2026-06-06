@@ -62,7 +62,8 @@ function TodayPage() {
     screen === "mood" ||
     screen === "cards" ||
     screen === "memory" ||
-    screen === "question";
+    screen === "question" ||
+    screen === "story";
 
   useEffect(() => {
     (async () => {
