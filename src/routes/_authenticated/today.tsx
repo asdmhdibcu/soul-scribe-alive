@@ -209,7 +209,7 @@ function TodayPage() {
     await clearDraft();
   }
 
-  async function startGeneration(answer: AnswerPayload) {
+  async function startGeneration(story: StoryPayload) {
     const s = session;
     if (!s) return;
     setScreen("generate");
@@ -225,8 +225,10 @@ function TodayPage() {
           one_sentence: s.memory?.one_sentence ?? "",
           voice_transcript: s.memory?.voice_transcript ?? "",
           has_photo: (s.memory?.photos.length ?? 0) > 0,
-          question: answer.question ?? "",
-          answer: answer.answer_text ?? "",
+          question: s.answer?.question ?? "",
+          answer: s.answer?.answer_text ?? "",
+          personal_notes: story.personal_notes ?? "",
+          user_voice_story: story.user_voice_story ?? "",
           ai_tone: aiTone,
         },
       });
