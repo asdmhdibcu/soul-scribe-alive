@@ -2,19 +2,24 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/react";
 import { ArrowRight } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
 import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop";
 import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
+import { GenerationChamber } from "@/components/session/GenerationChamber";
+import { DiaryPage } from "@/components/session/DiaryPage";
+import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "done";
+type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "generate" | "diary";
+
 
 type SessionState = {
   mood_x: number;
