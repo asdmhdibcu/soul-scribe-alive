@@ -69,7 +69,7 @@ function OnboardingPage() {
   const canContinue =
     (step === 0) ||
     (step === 1 && intents.length > 0) ||
-    (step === 2 && (rhythm !== null || (useCustom && customTime))) ||
+    (step === 2 && (rhythm !== null || (useCustom && customTime.length > 0))) ||
     (step === 3 && tone !== null) ||
     step === 4;
 
