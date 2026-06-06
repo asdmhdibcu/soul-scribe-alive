@@ -120,29 +120,3 @@ export const generateDiary = createServerFn({ method: "POST" })
       return fallback;
     }
   });
-
-const SaveInput = z.object({
-  date: z.string(),
-  mood_x: z.number(),
-  mood_y: z.number(),
-  mood_color: z.string(),
-  cards: z.array(Card).default([]),
-  photos: z.array(z.string()).default([]),
-  voice_transcript: z.string().default(""),
-  one_answer: z.string().default(""),
-  ai_tone: z.string().nullable().optional(),
-  diary: DiarySchema,
-});
-
-export const saveDiaryEntry = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => SaveInput.parse(data))
-  .handler(async ({ data }) => {
-    const { requireSupabaseAuth } = await import("@/integrations/supabase/auth-middleware");
-    void requireSupabaseAuth;
-    // Use auth-middleware path explicitly so RLS applies as the user.
-    const { createServerClient } = await import("@supabase/ssr");
-    void createServerClient;
-    // Simpler: import the admin or use the supabase client via auth-middleware in real code.
-    // For now use service role only to upsert as the authed user via JWT.
-    throw new Error("saveDiaryEntry called via unsupported path");
-  });
