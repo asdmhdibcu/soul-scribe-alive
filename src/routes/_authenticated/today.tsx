@@ -2,19 +2,24 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/react";
 import { ArrowRight } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
 import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop";
 import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
+import { GenerationChamber } from "@/components/session/GenerationChamber";
+import { DiaryPage } from "@/components/session/DiaryPage";
+import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "done";
+type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "generate" | "diary";
+
 
 type SessionState = {
   mood_x: number;
@@ -32,6 +37,9 @@ function TodayPage() {
   const [session, setSession] = useState<SessionState | null>(null);
   const [streak, setStreak] = useState(0);
   const [aiTone, setAiTone] = useState<string | null>(null);
+  const [userName, setUserName] = useState("friend");
+  const [diary, setDiary] = useState<DiaryResult | null>(null);
+  const generate = useServerFn(generateDiary);
 
   useEffect(() => {
     (async () => {
@@ -39,13 +47,46 @@ function TodayPage() {
       if (!u.user) return;
       const { data } = await supabase
         .from("users")
-        .select("streak, ai_tone")
+        .select("streak, ai_tone, name")
         .eq("id", u.user.id)
         .maybeSingle();
       setStreak(data?.streak ?? 0);
       setAiTone(data?.ai_tone ?? null);
+      setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
     })();
   }, []);
+
+  async function startGeneration(answer: AnswerPayload) {
+    const s = session;
+    if (!s) return;
+    setScreen("generate");
+    try {
+      const result = await generate({
+        data: {
+          name: userName,
+          mood_x: s.mood_x,
+          mood_y: s.mood_y,
+          mood_label: s.mood_label,
+          mood_color: s.mood_color,
+          cards: (s.cards_swiped ?? []).map((c) => ({ card: c.card, swipe: c.swipe })),
+          one_sentence: s.memory?.one_sentence ?? "",
+          voice_transcript: s.memory?.voice_transcript ?? "",
+          has_photo: (s.memory?.photos.length ?? 0) > 0,
+          question: answer.question ?? "",
+          answer: answer.answer_text ?? "",
+          ai_tone: aiTone,
+        },
+      });
+      // Hold the chamber for at least 5s of cinematic time
+      await new Promise((r) => setTimeout(r, 1200));
+      setDiary(result);
+      setScreen("diary");
+    } catch (e) {
+      console.error(e);
+      setScreen("diary");
+    }
+  }
+
 
   return (
     <div className="fixed inset-0 z-50 bg-background text-foreground overflow-hidden isolate">
@@ -140,22 +181,51 @@ function TodayPage() {
               onBack={() => setScreen("memory")}
               onComplete={(a) => {
                 setSession((s) => (s ? { ...s, answer: a } : s));
-                setScreen("done");
+                void startGeneration(a);
               }}
             />
           </motion.div>
         )}
-        {screen === "done" && (
+        {screen === "generate" && session && (
           <motion.div
-            key="done"
-            className="absolute inset-0 flex items-center justify-center px-8 text-center"
+            key="generate"
+            className="absolute inset-0"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <DonePreview session={session} />
+            <GenerationChamber
+              moodColor={session.mood_color}
+              hasPhotos={(session.memory?.photos.length ?? 0) > 0}
+              hasVoice={!!session.memory?.voice_url}
+              hasText={!!(session.memory?.one_sentence ?? "").trim()}
+              cardsCount={session.cards_swiped?.length ?? 0}
+            />
           </motion.div>
         )}
+        {screen === "diary" && session && diary && (
+          <motion.div
+            key="diary"
+            className="absolute inset-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <DiaryPage
+              diary={diary}
+              moodColor={session.mood_color}
+              moodX={session.mood_x}
+              moodY={session.mood_y}
+              cards={session.cards_swiped ?? []}
+              photos={session.memory?.photos ?? []}
+              voiceTranscript={session.memory?.voice_transcript ?? ""}
+              oneAnswer={session.answer?.answer_text ?? ""}
+              aiTone={aiTone}
+            />
+          </motion.div>
+        )}
+
       </AnimatePresence>
     </div>
   );
