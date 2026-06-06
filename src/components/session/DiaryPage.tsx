@@ -33,6 +33,7 @@ export function DiaryPage({
   aiTone,
 }: Props) {
   const navigate = useNavigate();
+  const awardCoinsFn = useServerFn(awardCoins);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confetti, setConfetti] = useState(false);
