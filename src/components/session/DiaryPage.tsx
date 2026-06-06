@@ -93,8 +93,7 @@ export function DiaryPage({
             tonight_intention: diary.tonight_intention,
           } as never,
           coins_earned: diary.coins_earned,
-          is_private: opts.isPrivate ?? !opts.sell,
-          price: opts.sell ? opts.price ?? 1 : null,
+          is_private: true,
         },
         { onConflict: "user_id,date" },
       );
