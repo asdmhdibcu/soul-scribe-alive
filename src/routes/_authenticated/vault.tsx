@@ -156,6 +156,9 @@ function VaultPage() {
           const term = debouncedSearch.replace(/[%_]/g, "");
           q = q.or(`title.ilike.%${term}%,content.ilike.%${term}%`);
         }
+        if (!can("unlimited_vault")) {
+          q = q.gte("date", vaultCapDate);
+        }
 
         const { data, error } = await q;
         if (error) throw error;
@@ -171,7 +174,7 @@ function VaultPage() {
         setLoadingMore(false);
       }
     },
-    [filter, debouncedSearch],
+    [filter, debouncedSearch, can, vaultCapDate],
   );
 
   // Reload on filter / search
