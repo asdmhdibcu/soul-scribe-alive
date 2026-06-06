@@ -135,6 +135,8 @@ function TodayPage() {
             answer_text: session.answer.answer_text ?? "",
           }
         : null,
+      personal_notes: session.story?.personal_notes ?? null,
+      user_voice_story: session.story?.user_voice_story ?? null,
     });
     // Save immediately on dependency change
     void saveDraft(snapshot());
