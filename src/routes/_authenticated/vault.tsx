@@ -83,7 +83,9 @@ function VaultPage() {
   const [memAnswer, setMemAnswer] = useState<string | null>(null);
   const [memLoading, setMemLoading] = useState(false);
   const ask = useServerFn(askMemory);
-  const { can } = usePlan();
+  const { plan } = usePlan();
+  const unlimitedVault = plan === "soul" || plan === "family" || plan === "legacy";
+  const canMemorySearch = unlimitedVault;
   const vaultCapDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - FREE_LIMITS.vault_days);
@@ -156,7 +158,7 @@ function VaultPage() {
           const term = debouncedSearch.replace(/[%_]/g, "");
           q = q.or(`title.ilike.%${term}%,content.ilike.%${term}%`);
         }
-        if (!can("unlimited_vault")) {
+        if (!unlimitedVault) {
           q = q.gte("date", vaultCapDate);
         }
 
@@ -174,7 +176,7 @@ function VaultPage() {
         setLoadingMore(false);
       }
     },
-    [filter, debouncedSearch, can, vaultCapDate],
+    [filter, debouncedSearch, unlimitedVault, vaultCapDate],
   );
 
   // Reload on filter / search
