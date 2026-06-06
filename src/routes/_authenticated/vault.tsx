@@ -640,12 +640,10 @@ function EntryModal({
   entry,
   onClose,
   onDelete,
-  onToggleSale,
 }: {
   entry: Entry;
   onClose: () => void;
   onDelete: () => void;
-  onToggleSale: () => void;
 }) {
   const moodColor = entry.mood_color ?? "rgba(240,201,106,0.4)";
   const date = new Date(entry.date);
