@@ -46,7 +46,21 @@ function TodayPage() {
   const [aiTone, setAiTone] = useState<string | null>(null);
   const [userName, setUserName] = useState("friend");
   const [diary, setDiary] = useState<DiaryResult | null>(null);
+  const [draftPrompt, setDraftPrompt] = useState<null | {
+    step: DraftStep;
+    session: SessionState;
+    answer?: AnswerPayload;
+    updated_at: string;
+  }>(null);
+  const [recoveredBanner, setRecoveredBanner] = useState(false);
   const generate = useServerFn(generateDiary);
+
+  // Active session = anything past the portal but before the diary is saved.
+  const inSession =
+    screen === "mood" ||
+    screen === "cards" ||
+    screen === "memory" ||
+    screen === "question";
 
   useEffect(() => {
     (async () => {
@@ -60,8 +74,126 @@ function TodayPage() {
       setStreak(data?.streak ?? 0);
       setAiTone(data?.ai_tone ?? null);
       setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
+
+      // Look for an unfinished draft and offer to resume
+      const draft = await loadDraft();
+      if (draft && draft.mood_data) {
+        const s: SessionState = {
+          mood_x: draft.mood_data.x,
+          mood_y: draft.mood_data.y,
+          mood_color: draft.mood_data.color,
+          mood_label: draft.mood_data.label,
+          cards_swiped: (draft.spark_cards as SwipeResult[] | null) ?? undefined,
+          memory: {
+            photos: draft.photos ?? [],
+            voice_url: null,
+            voice_transcript: draft.voice_transcript ?? "",
+            one_sentence: draft.one_sentence ?? "",
+          } satisfies MemoryPayload,
+          answer: draft.one_question_answer
+            ? ({
+                question: draft.one_question_answer.question,
+                answer_text: draft.one_question_answer.answer_text,
+              } as AnswerPayload)
+            : undefined,
+        };
+        const allowed: DraftStep[] = ["mood", "cards", "memory", "question"];
+        const step = allowed.includes(draft.current_step) ? draft.current_step : "mood";
+        setDraftPrompt({ step, session: s, answer: s.answer, updated_at: draft.updated_at });
+      }
     })();
   }, []);
+
+  // Auto-save: on screen/session change AND every 10s while in session.
+  useEffect(() => {
+    if (!inSession || !session) return;
+    const snapshot = () => ({
+      current_step: screen as DraftStep,
+      mood_data: {
+        x: session.mood_x,
+        y: session.mood_y,
+        color: session.mood_color,
+        label: session.mood_label,
+      },
+      spark_cards: session.cards_swiped ?? [],
+      photos: session.memory?.photos ?? [],
+      voice_transcript: session.memory?.voice_transcript ?? null,
+      one_sentence: session.memory?.one_sentence ?? null,
+      one_question_answer: session.answer
+        ? {
+            question: session.answer.question ?? "",
+            answer_text: session.answer.answer_text ?? "",
+          }
+        : null,
+    });
+    // Save immediately on dependency change
+    void saveDraft(snapshot());
+    // Tick every 10s
+    const id = window.setInterval(() => void saveDraft(snapshot()), 10_000);
+    return () => window.clearInterval(id);
+  }, [inSession, screen, session]);
+
+  // Auto-save on browser close / tab background.
+  useEffect(() => {
+    if (!inSession || !session) return;
+    const buildPayload = async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      return {
+        user_id: u.user.id,
+        current_step: screen as DraftStep,
+        mood_data: {
+          x: session.mood_x,
+          y: session.mood_y,
+          color: session.mood_color,
+          label: session.mood_label,
+        },
+        spark_cards: session.cards_swiped ?? [],
+        photos: session.memory?.photos ?? [],
+        voice_transcript: session.memory?.voice_transcript ?? null,
+        one_sentence: session.memory?.one_sentence ?? null,
+        one_question_answer: session.answer
+          ? {
+              question: session.answer.question ?? "",
+              answer_text: session.answer.answer_text ?? "",
+            }
+          : null,
+      };
+    };
+    const onHide = () => {
+      void buildPayload().then((p) => p && flushDraftBeacon(p));
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("beforeunload", onHide);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("beforeunload", onHide);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [inSession, screen, session]);
+
+  // Clear draft once diary is generated & shown.
+  useEffect(() => {
+    if (screen === "diary") void clearDraft();
+  }, [screen]);
+
+  function resumeDraft() {
+    if (!draftPrompt) return;
+    setSession(draftPrompt.session);
+    setScreen(draftPrompt.step);
+    setRecoveredBanner(true);
+    setDraftPrompt(null);
+    window.setTimeout(() => setRecoveredBanner(false), 3500);
+  }
+
+  async function discardDraft() {
+    setDraftPrompt(null);
+    await clearDraft();
+  }
 
   async function startGeneration(answer: AnswerPayload) {
     const s = session;
