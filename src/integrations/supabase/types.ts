@@ -235,6 +235,54 @@ export type Database = {
         }
         Relationships: []
       }
+      draft_sessions: {
+        Row: {
+          created_at: string
+          current_step: string
+          id: string
+          mood_data: Json | null
+          one_question_answer: Json | null
+          one_sentence: string | null
+          personal_notes: string | null
+          photos: Json | null
+          spark_cards: Json | null
+          updated_at: string
+          user_id: string
+          user_voice_story: string | null
+          voice_transcript: string | null
+        }
+        Insert: {
+          created_at?: string
+          current_step?: string
+          id?: string
+          mood_data?: Json | null
+          one_question_answer?: Json | null
+          one_sentence?: string | null
+          personal_notes?: string | null
+          photos?: Json | null
+          spark_cards?: Json | null
+          updated_at?: string
+          user_id: string
+          user_voice_story?: string | null
+          voice_transcript?: string | null
+        }
+        Update: {
+          created_at?: string
+          current_step?: string
+          id?: string
+          mood_data?: Json | null
+          one_question_answer?: Json | null
+          one_sentence?: string | null
+          personal_notes?: string | null
+          photos?: Json | null
+          spark_cards?: Json | null
+          updated_at?: string
+          user_id?: string
+          user_voice_story?: string | null
+          voice_transcript?: string | null
+        }
+        Relationships: []
+      }
       family_capsules: {
         Row: {
           created_at: string
