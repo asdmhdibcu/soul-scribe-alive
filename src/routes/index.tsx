@@ -123,9 +123,9 @@ function Hero() {
             step >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          5 minutes. One conversation.
+          Capture life. Understand life.
           <br className="hidden sm:block" />
-          A lifetime of knowing yourself.
+          Preserve life. Pass it on.
         </p>
 
         <div
