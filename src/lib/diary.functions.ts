@@ -84,11 +84,13 @@ export const generateDiary = createServerFn({ method: "POST" })
     const ctx: string[] = [];
     ctx.push(`User name: ${data.name}`);
     ctx.push(`Mood word: "${data.mood_label}" (x=${data.mood_x.toFixed(2)} where +x is alive, y=${data.mood_y.toFixed(2)} where +y is bright)`);
+    if (data.personal_notes) ctx.push(`✦ PRIORITY — They WROTE their story in their own words:\n"""\n${data.personal_notes}\n"""`);
+    if (data.user_voice_story) ctx.push(`✦ PRIORITY — They SPOKE their story aloud:\n"""\n${data.user_voice_story}\n"""`);
     if (up.length) ctx.push(`Felt MAJOR today: ${up.join("; ")}`);
     if (down.length) ctx.push(`Hurt them today: ${down.join("; ")}`);
     if (right.length) ctx.push(`Also true today: ${right.slice(0, 8).join("; ")}`);
     if (data.one_sentence) ctx.push(`One sentence they wrote: "${data.one_sentence}"`);
-    if (data.voice_transcript) ctx.push(`They said aloud: "${data.voice_transcript}"`);
+    if (data.voice_transcript) ctx.push(`They said aloud (memory drop): "${data.voice_transcript}"`);
     if (data.has_photo) ctx.push(`They shared a photo of today.`);
     if (data.question && data.answer) {
       ctx.push(`We asked them: "${data.question}"`);
