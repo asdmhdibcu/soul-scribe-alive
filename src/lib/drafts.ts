@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type DraftStep = "mood" | "cards" | "memory" | "question";
+export type DraftStep = "mood" | "cards" | "memory" | "question" | "story";
 
 export type DraftRow = {
   current_step: DraftStep;
@@ -10,6 +10,8 @@ export type DraftRow = {
   voice_transcript: string | null;
   one_sentence: string | null;
   one_question_answer: { question: string; answer_text: string } | null;
+  personal_notes: string | null;
+  user_voice_story: string | null;
   updated_at: string;
 };
 
@@ -19,7 +21,7 @@ export async function loadDraft(): Promise<DraftRow | null> {
   const { data } = await supabase
     .from("draft_sessions")
     .select(
-      "current_step, mood_data, spark_cards, photos, voice_transcript, one_sentence, one_question_answer, updated_at",
+      "current_step, mood_data, spark_cards, photos, voice_transcript, one_sentence, one_question_answer, personal_notes, user_voice_story, updated_at",
     )
     .eq("user_id", u.user.id)
     .maybeSingle();

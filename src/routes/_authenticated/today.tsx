@@ -11,6 +11,7 @@ import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop"
 import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
 import { GenerationChamber } from "@/components/session/GenerationChamber";
 import { DiaryPage } from "@/components/session/DiaryPage";
+import { MyStory, type StoryPayload } from "@/components/session/MyStory";
 import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
 import {
   loadDraft,
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/today")({
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "generate" | "diary";
+type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "story" | "generate" | "diary";
 
 
 type SessionState = {
@@ -36,6 +37,7 @@ type SessionState = {
   cards_swiped?: SwipeResult[];
   memory?: MemoryPayload;
   answer?: AnswerPayload;
+  story?: StoryPayload;
 };
 
 function TodayPage() {
@@ -60,7 +62,8 @@ function TodayPage() {
     screen === "mood" ||
     screen === "cards" ||
     screen === "memory" ||
-    screen === "question";
+    screen === "question" ||
+    screen === "story";
 
   useEffect(() => {
     (async () => {
@@ -96,8 +99,15 @@ function TodayPage() {
                 answer_text: draft.one_question_answer.answer_text,
               } as AnswerPayload)
             : undefined,
+          story:
+            draft.personal_notes || draft.user_voice_story
+              ? {
+                  personal_notes: draft.personal_notes ?? "",
+                  user_voice_story: draft.user_voice_story ?? "",
+                }
+              : undefined,
         };
-        const allowed: DraftStep[] = ["mood", "cards", "memory", "question"];
+        const allowed: DraftStep[] = ["mood", "cards", "memory", "question", "story"];
         const step = allowed.includes(draft.current_step) ? draft.current_step : "mood";
         setDraftPrompt({ step, session: s, answer: s.answer, updated_at: draft.updated_at });
       }
@@ -125,6 +135,8 @@ function TodayPage() {
             answer_text: session.answer.answer_text ?? "",
           }
         : null,
+      personal_notes: session.story?.personal_notes ?? null,
+      user_voice_story: session.story?.user_voice_story ?? null,
     });
     // Save immediately on dependency change
     void saveDraft(snapshot());
@@ -158,6 +170,8 @@ function TodayPage() {
               answer_text: session.answer.answer_text ?? "",
             }
           : null,
+        personal_notes: session.story?.personal_notes ?? null,
+        user_voice_story: session.story?.user_voice_story ?? null,
       };
     };
     const onHide = () => {
@@ -195,7 +209,7 @@ function TodayPage() {
     await clearDraft();
   }
 
-  async function startGeneration(answer: AnswerPayload) {
+  async function startGeneration(story: StoryPayload) {
     const s = session;
     if (!s) return;
     setScreen("generate");
@@ -211,8 +225,10 @@ function TodayPage() {
           one_sentence: s.memory?.one_sentence ?? "",
           voice_transcript: s.memory?.voice_transcript ?? "",
           has_photo: (s.memory?.photos.length ?? 0) > 0,
-          question: answer.question ?? "",
-          answer: answer.answer_text ?? "",
+          question: s.answer?.question ?? "",
+          answer: s.answer?.answer_text ?? "",
+          personal_notes: story.personal_notes ?? "",
+          user_voice_story: story.user_voice_story ?? "",
           ai_tone: aiTone,
         },
       });
@@ -320,7 +336,26 @@ function TodayPage() {
               onBack={() => setScreen("memory")}
               onComplete={(a) => {
                 setSession((s) => (s ? { ...s, answer: a } : s));
-                void startGeneration(a);
+                setScreen("story");
+              }}
+            />
+          </motion.div>
+        )}
+        {screen === "story" && session && (
+          <motion.div
+            key="story"
+            className="absolute inset-0"
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -24 }}
+            transition={{ duration: 0.45 }}
+          >
+            <MyStory
+              initial={session.story}
+              onBack={() => setScreen("question")}
+              onContinue={(story) => {
+                setSession((s) => (s ? { ...s, story } : s));
+                void startGeneration(story);
               }}
             />
           </motion.div>

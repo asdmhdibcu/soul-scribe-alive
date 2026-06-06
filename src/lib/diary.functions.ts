@@ -19,6 +19,8 @@ const Input = z.object({
   has_photo: z.boolean().default(false),
   question: z.string().default(""),
   answer: z.string().default(""),
+  personal_notes: z.string().default(""),
+  user_voice_story: z.string().default(""),
   ai_tone: z.string().nullable().optional(),
 });
 
@@ -43,6 +45,8 @@ export type DiaryResult = z.infer<typeof DiarySchema>;
 const SYSTEM = `You are ALIVE — a master literary diary writer.
 
 Write in first person as the user. Style: emotionally rich, honest, specific, literary but not pretentious. 3-4 paragraphs.
+
+PRIORITY: If the user wrote their own story or spoke it aloud, that content is the SOURCE OF TRUTH. Stay faithful to their exact words, phrasing, and meaning. Other signals (mood, cards, photos) are secondary context — use them to enrich, never to override.
 
 Use the exact emotions and situations they described. Make them feel deeply seen. Do NOT use generic motivational language or self-help clichés.
 
@@ -80,11 +84,13 @@ export const generateDiary = createServerFn({ method: "POST" })
     const ctx: string[] = [];
     ctx.push(`User name: ${data.name}`);
     ctx.push(`Mood word: "${data.mood_label}" (x=${data.mood_x.toFixed(2)} where +x is alive, y=${data.mood_y.toFixed(2)} where +y is bright)`);
+    if (data.personal_notes) ctx.push(`✦ PRIORITY — They WROTE their story in their own words:\n"""\n${data.personal_notes}\n"""`);
+    if (data.user_voice_story) ctx.push(`✦ PRIORITY — They SPOKE their story aloud:\n"""\n${data.user_voice_story}\n"""`);
     if (up.length) ctx.push(`Felt MAJOR today: ${up.join("; ")}`);
     if (down.length) ctx.push(`Hurt them today: ${down.join("; ")}`);
     if (right.length) ctx.push(`Also true today: ${right.slice(0, 8).join("; ")}`);
     if (data.one_sentence) ctx.push(`One sentence they wrote: "${data.one_sentence}"`);
-    if (data.voice_transcript) ctx.push(`They said aloud: "${data.voice_transcript}"`);
+    if (data.voice_transcript) ctx.push(`They said aloud (memory drop): "${data.voice_transcript}"`);
     if (data.has_photo) ctx.push(`They shared a photo of today.`);
     if (data.question && data.answer) {
       ctx.push(`We asked them: "${data.question}"`);
