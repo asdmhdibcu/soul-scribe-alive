@@ -29,12 +29,10 @@ export async function loadDraft(): Promise<DraftRow | null> {
 export async function saveDraft(payload: Partial<Omit<DraftRow, "updated_at">>) {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) return;
+  const row = { user_id: u.user.id, ...payload } as Record<string, unknown>;
   await supabase
     .from("draft_sessions")
-    .upsert(
-      { user_id: u.user.id, ...(payload as never) },
-      { onConflict: "user_id" },
-    );
+    .upsert(row as never, { onConflict: "user_id" });
 }
 
 /** Best-effort flush during pagehide/beforeunload. */
