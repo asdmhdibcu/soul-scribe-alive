@@ -297,7 +297,7 @@ function VaultPage() {
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <FilterTab active={filter === "all"} onClick={() => setFilter("all")} label="All" />
           <FilterTab active={filter === "private"} onClick={() => setFilter("private")} label="Private" icon="🔐" />
-          <FilterTab active={filter === "sale"} onClick={() => setFilter("sale")} label="For Sale" icon="💰" />
+          
           <FilterTab active={filter === "favorites"} onClick={() => setFilter("favorites")} label="Favorites" icon="⭐" />
           <FilterTab active={filter === "month"} onClick={() => setFilter("month")} label="This Month" />
         </div>
