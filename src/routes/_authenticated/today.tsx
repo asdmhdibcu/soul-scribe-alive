@@ -73,7 +73,7 @@ function TodayPage() {
           voice_transcript: s.memory?.voice_transcript ?? "",
           has_photo: (s.memory?.photos.length ?? 0) > 0,
           question: answer.question ?? "",
-          answer: answer.answer ?? "",
+          answer: answer.answer_text ?? "",
           ai_tone: aiTone,
         },
       });
