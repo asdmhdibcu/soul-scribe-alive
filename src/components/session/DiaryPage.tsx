@@ -3,6 +3,8 @@ import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { useServerFn } from "@tanstack/react-start";
+import { awardCoins } from "@/lib/coins.functions";
 import { GoldButton } from "@/components/auth/AuthShell";
 import type { DiaryResult } from "@/lib/diary.functions";
 import type { SwipeResult } from "@/components/session/SparkCards";
@@ -31,6 +33,7 @@ export function DiaryPage({
   aiTone,
 }: Props) {
   const navigate = useNavigate();
+  const awardCoinsFn = useServerFn(awardCoins);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confetti, setConfetti] = useState(false);
@@ -108,11 +111,11 @@ export function DiaryPage({
         })
         .eq("id", u.user.id);
 
-      await supabase.from("coins_history").insert({
-        user_id: u.user.id,
-        amount: diary.coins_earned,
-        reason: "Daily session completed",
-      });
+      try {
+        await awardCoinsFn({ data: { amount: diary.coins_earned, reason: "Daily session completed" } });
+      } catch (e) {
+        console.error("awardCoins failed", e);
+      }
 
       setSaved(true);
       setConfetti(true);

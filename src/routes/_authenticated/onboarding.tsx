@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { GoldParticles } from "@/components/landing/atmos";
+import { useServerFn } from "@tanstack/react-start";
+import { awardCoins } from "@/lib/coins.functions";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "Welcome — ALIVE" }] }),
@@ -46,6 +48,7 @@ const TONES = [
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const awardCoinsFn = useServerFn(awardCoins);
   const [step, setStep] = useState(0);
   const [name, setName] = useState<string>("friend");
   const [intents, setIntents] = useState<string[]>([]);
@@ -112,11 +115,11 @@ function OnboardingPage() {
       })
       .eq("id", u.user.id);
 
-    await supabase.from("coins_history").insert({
-      user_id: u.user.id,
-      amount: 50,
-      reason: "Completed onboarding",
-    });
+    try {
+      await awardCoinsFn({ data: { amount: 50, reason: "Completed onboarding" } });
+    } catch (e) {
+      console.error("awardCoins failed", e);
+    }
 
     toast.success("You earned 50 coins! 🌟", {
       description: "Welcome to ALIVE. Your story begins now.",
