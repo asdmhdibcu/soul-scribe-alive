@@ -472,6 +472,7 @@ export type Database = {
           level: number
           longest_streak: number
           name: string | null
+          onboarding_complete: boolean
           plan: string
           reminder_time: string | null
           streak: number
@@ -488,6 +489,7 @@ export type Database = {
           level?: number
           longest_streak?: number
           name?: string | null
+          onboarding_complete?: boolean
           plan?: string
           reminder_time?: string | null
           streak?: number
@@ -504,6 +506,7 @@ export type Database = {
           level?: number
           longest_streak?: number
           name?: string | null
+          onboarding_complete?: boolean
           plan?: string
           reminder_time?: string | null
           streak?: number
