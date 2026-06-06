@@ -21,7 +21,7 @@ export async function loadDraft(): Promise<DraftRow | null> {
   const { data } = await supabase
     .from("draft_sessions")
     .select(
-      "current_step, mood_data, spark_cards, photos, voice_transcript, one_sentence, one_question_answer, updated_at",
+      "current_step, mood_data, spark_cards, photos, voice_transcript, one_sentence, one_question_answer, personal_notes, user_voice_story, updated_at",
     )
     .eq("user_id", u.user.id)
     .maybeSingle();
