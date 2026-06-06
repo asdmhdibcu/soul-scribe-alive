@@ -111,11 +111,11 @@ export function DiaryPage({
         })
         .eq("id", u.user.id);
 
-      await supabase.from("coins_history").insert({
-        user_id: u.user.id,
-        amount: diary.coins_earned,
-        reason: "Daily session completed",
-      });
+      try {
+        await awardCoinsFn({ data: { amount: diary.coins_earned, reason: "Daily session completed" } });
+      } catch (e) {
+        console.error("awardCoins failed", e);
+      }
 
       setSaved(true);
       setConfetti(true);
