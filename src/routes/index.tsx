@@ -10,7 +10,6 @@ import {
   Lock,
   Users,
   CircleDot,
-  Coins,
   Check,
 } from "lucide-react";
 import { GoldParticles, Reveal } from "@/components/landing/atmos";
