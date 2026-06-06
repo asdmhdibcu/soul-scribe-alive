@@ -12,6 +12,13 @@ import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestio
 import { GenerationChamber } from "@/components/session/GenerationChamber";
 import { DiaryPage } from "@/components/session/DiaryPage";
 import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
+import {
+  loadDraft,
+  saveDraft,
+  clearDraft,
+  flushDraftBeacon,
+  type DraftStep,
+} from "@/lib/drafts";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
