@@ -1,0 +1,1 @@
+ALTER TABLE public.diary_entries ADD CONSTRAINT diary_entries_user_date_unique UNIQUE (user_id, date);
