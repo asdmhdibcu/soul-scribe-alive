@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/vault")({
   component: VaultPage,
 });
 
-type Filter = "all" | "private" | "sale" | "favorites" | "month";
+type Filter = "all" | "private" | "favorites" | "month";
 
 type Entry = {
   id: string;
@@ -45,7 +45,6 @@ type Entry = {
   mood_x: number | null;
   mood_y: number | null;
   is_private: boolean;
-  price: number | null;
   coins_earned: number;
   ai_insight: string | null;
   focus_word: string | null;
