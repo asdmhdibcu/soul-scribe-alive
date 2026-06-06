@@ -606,15 +606,6 @@ function EntryCard({
             </span>
             <div className="flex items-center gap-1.5">
               {entry.is_private && <Lock className="h-3 w-3 text-gold-light/70" />}
-              {entry.price != null && (
-                <span
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] text-gold-light"
-                  style={{ border: "1px solid rgba(240,201,106,0.4)" }}
-                >
-                  <Tag className="h-2.5 w-2.5" />
-                  {entry.price}
-                </span>
-              )}
             </div>
           </div>
 
