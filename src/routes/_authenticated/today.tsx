@@ -11,6 +11,7 @@ import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop"
 import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
 import { GenerationChamber } from "@/components/session/GenerationChamber";
 import { DiaryPage } from "@/components/session/DiaryPage";
+import { MyStory, type StoryPayload } from "@/components/session/MyStory";
 import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
 import {
   loadDraft,
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/today")({
   component: TodayPage,
 });
 
-type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "generate" | "diary";
+type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "story" | "generate" | "diary";
 
 
 type SessionState = {
@@ -36,6 +37,7 @@ type SessionState = {
   cards_swiped?: SwipeResult[];
   memory?: MemoryPayload;
   answer?: AnswerPayload;
+  story?: StoryPayload;
 };
 
 function TodayPage() {
