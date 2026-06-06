@@ -99,8 +99,15 @@ function TodayPage() {
                 answer_text: draft.one_question_answer.answer_text,
               } as AnswerPayload)
             : undefined,
+          story:
+            draft.personal_notes || draft.user_voice_story
+              ? {
+                  personal_notes: draft.personal_notes ?? "",
+                  user_voice_story: draft.user_voice_story ?? "",
+                }
+              : undefined,
         };
-        const allowed: DraftStep[] = ["mood", "cards", "memory", "question"];
+        const allowed: DraftStep[] = ["mood", "cards", "memory", "question", "story"];
         const step = allowed.includes(draft.current_step) ? draft.current_step : "mood";
         setDraftPrompt({ step, session: s, answer: s.answer, updated_at: draft.updated_at });
       }
