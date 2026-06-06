@@ -10,7 +10,6 @@ import {
   Lock,
   Users,
   CircleDot,
-  Coins,
   Check,
 } from "lucide-react";
 import { GoldParticles, Reveal } from "@/components/landing/atmos";
@@ -124,9 +123,9 @@ function Hero() {
             step >= 4 ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
           }`}
         >
-          5 minutes. One conversation.
+          Capture life. Understand life.
           <br className="hidden sm:block" />
-          A lifetime of knowing yourself.
+          Preserve life. Pass it on.
         </p>
 
         <div
@@ -284,9 +283,9 @@ function Features() {
       body: "Pattern recognition across months. Predicts your week before it happens.",
     },
     {
-      icon: <Coins className="h-6 w-6" strokeWidth={1.5} />,
-      title: "Your Story Has Value",
-      body: "Monetize your journey. Content creators buy real human stories. You set the price.",
+      icon: <BookOpen className="h-6 w-6" strokeWidth={1.5} />,
+      title: "Annual Life Book",
+      body: "Every year, ALIVE compiles your best entries, memories, mood patterns, and photos into a beautiful digital book.",
     },
   ];
 
@@ -415,8 +414,7 @@ function Pricing() {
         "Unlimited family members",
         "Voice of loved ones",
         "Legacy letters",
-        "Content marketplace",
-        "Annual life book PDF",
+        "Annual Life Book",
         "Memory search unlimited",
       ],
     },
@@ -503,7 +501,7 @@ function Footer() {
             ALIVE
           </div>
           <p className="mt-3 font-display italic text-muted-foreground">
-            Your story. Your growth. Your life.
+            Your reflection. Your memory. Your legacy.
           </p>
         </div>
         <nav className="flex flex-wrap gap-8 text-sm text-muted-foreground">

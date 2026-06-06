@@ -11,7 +11,7 @@ import {
   Search,
   Sparkles,
   Star,
-  Tag,
+  
   Timer,
   Trash2,
   X,
@@ -34,7 +34,7 @@ export const Route = createFileRoute("/_authenticated/vault")({
   component: VaultPage,
 });
 
-type Filter = "all" | "private" | "sale" | "favorites" | "month";
+type Filter = "all" | "private" | "favorites" | "month";
 
 type Entry = {
   id: string;
@@ -45,7 +45,6 @@ type Entry = {
   mood_x: number | null;
   mood_y: number | null;
   is_private: boolean;
-  price: number | null;
   coins_earned: number;
   ai_insight: string | null;
   focus_word: string | null;
@@ -132,14 +131,13 @@ function VaultPage() {
         let q = supabase
           .from("diary_entries")
           .select(
-            "id, date, title, content, mood_color, mood_x, mood_y, is_private, price, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
+            "id, date, title, content, mood_color, mood_x, mood_y, is_private, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
           )
           .eq("user_id", u.user.id)
           .order("date", { ascending: false })
           .range(nextPage * PAGE_SIZE, nextPage * PAGE_SIZE + PAGE_SIZE - 1);
 
         if (filter === "private") q = q.eq("is_private", true);
-        if (filter === "sale") q = q.not("price", "is", null);
         if (filter === "month") {
           const first = new Date();
           first.setDate(1);
@@ -243,21 +241,6 @@ function VaultPage() {
     }
   }
 
-  async function toggleSale(entry: Entry) {
-    const next = entry.price == null ? 1 : null;
-    const { error } = await supabase
-      .from("diary_entries")
-      .update({ price: next, is_private: next == null })
-      .eq("id", entry.id);
-    if (error) {
-      toast.error("Could not update.");
-      return;
-    }
-    const updated = { ...entry, price: next, is_private: next == null };
-    setEntries((prev) => prev.map((e) => (e.id === entry.id ? updated : e)));
-    setActiveEntry(updated);
-    toast.success(next == null ? "Returned to your vault." : "Listed for sale.");
-  }
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -314,7 +297,7 @@ function VaultPage() {
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <FilterTab active={filter === "all"} onClick={() => setFilter("all")} label="All" />
           <FilterTab active={filter === "private"} onClick={() => setFilter("private")} label="Private" icon="🔐" />
-          <FilterTab active={filter === "sale"} onClick={() => setFilter("sale")} label="For Sale" icon="💰" />
+          
           <FilterTab active={filter === "favorites"} onClick={() => setFilter("favorites")} label="Favorites" icon="⭐" />
           <FilterTab active={filter === "month"} onClick={() => setFilter("month")} label="This Month" />
         </div>
@@ -427,7 +410,7 @@ function VaultPage() {
             entry={activeEntry}
             onClose={() => setActiveEntry(null)}
             onDelete={() => setConfirmDelete(activeEntry.id)}
-            onToggleSale={() => toggleSale(activeEntry)}
+            
           />
         )}
       </AnimatePresence>
@@ -623,15 +606,6 @@ function EntryCard({
             </span>
             <div className="flex items-center gap-1.5">
               {entry.is_private && <Lock className="h-3 w-3 text-gold-light/70" />}
-              {entry.price != null && (
-                <span
-                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] text-gold-light"
-                  style={{ border: "1px solid rgba(240,201,106,0.4)" }}
-                >
-                  <Tag className="h-2.5 w-2.5" />
-                  {entry.price}
-                </span>
-              )}
             </div>
           </div>
 
@@ -666,12 +640,10 @@ function EntryModal({
   entry,
   onClose,
   onDelete,
-  onToggleSale,
 }: {
   entry: Entry;
   onClose: () => void;
   onDelete: () => void;
-  onToggleSale: () => void;
 }) {
   const moodColor = entry.mood_color ?? "rgba(240,201,106,0.4)";
   const date = new Date(entry.date);
@@ -843,20 +815,7 @@ function EntryModal({
             </>
           )}
 
-          <div className="mt-10 mb-12 space-y-3">
-            <button
-              type="button"
-              onClick={onToggleSale}
-              className="w-full h-12 rounded-2xl text-sm tracking-[0.18em] uppercase text-gold-light"
-              style={{
-                border: "1px solid rgba(240,201,106,0.45)",
-                background:
-                  "linear-gradient(160deg, rgba(240,201,106,0.12), rgba(22,22,31,0.6))",
-              }}
-            >
-              {entry.price == null ? "💰 List for Sale" : "🔐 Return to Vault"}
-            </button>
-          </div>
+          <div className="mt-10 mb-12" />
         </div>
       </motion.div>
     </motion.div>

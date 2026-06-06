@@ -45,7 +45,7 @@ export function DiaryPage({
     year: "numeric",
   });
 
-  async function save(opts: { sell?: boolean; price?: number; isPrivate?: boolean }) {
+  async function save() {
     if (saving) return;
     setSaving(true);
     try {
@@ -93,8 +93,7 @@ export function DiaryPage({
             tonight_intention: diary.tonight_intention,
           } as never,
           coins_earned: diary.coins_earned,
-          is_private: opts.isPrivate ?? !opts.sell,
-          price: opts.sell ? opts.price ?? 1 : null,
+          is_private: true,
         },
         { onConflict: "user_id,date" },
       );
@@ -283,36 +282,26 @@ export function DiaryPage({
           <GoldButton
             type="button"
             disabled={saving || saved}
-            onClick={() => save({ isPrivate: true })}
+            onClick={() => save()}
           >
             {saved ? "Saved to Vault" : saving ? "Saving…" : "🔐 Save to My Vault"}
           </GoldButton>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => save({ sell: true, price: 1 })}
-            className="w-full h-12 rounded-2xl text-sm tracking-[0.18em] uppercase text-gold-light disabled:opacity-50"
-            style={{
-              border: "1px solid rgba(240,201,106,0.45)",
-              background:
-                "linear-gradient(160deg, rgba(240,201,106,0.08), rgba(22,22,31,0.6))",
-            }}
-          >
-            💰 Set a Price & Sell
-          </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => {
-              if (saved) navigate({ to: "/" });
-              else save({ isPrivate: true });
-            }}
-            className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-3"
-          >
-            {saved ? "Close" : "Keep Private"}
-          </button>
+          <p className="text-center text-[11px] uppercase tracking-[0.3em] text-muted-foreground/70 pt-2">
+            One more page in your life archive.
+          </p>
+          {saved && (
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/" })}
+              className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-3"
+            >
+              Close
+            </button>
+          )}
         </div>
       </motion.div>
+
+
 
       {confetti && <ConfettiBurst />}
     </div>

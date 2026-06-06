@@ -175,7 +175,6 @@ export type Database = {
           one_answer: string | null
           one_thing: string | null
           photos: Json | null
-          price: number | null
           session_intent: string | null
           title: string | null
           tomorrow_plan: Json | null
@@ -202,7 +201,6 @@ export type Database = {
           one_answer?: string | null
           one_thing?: string | null
           photos?: Json | null
-          price?: number | null
           session_intent?: string | null
           title?: string | null
           tomorrow_plan?: Json | null
@@ -229,7 +227,6 @@ export type Database = {
           one_answer?: string | null
           one_thing?: string | null
           photos?: Json | null
-          price?: number | null
           session_intent?: string | null
           title?: string | null
           tomorrow_plan?: Json | null
@@ -342,44 +339,6 @@ export type Database = {
           },
         ]
       }
-      marketplace: {
-        Row: {
-          created_at: string
-          entry_id: string
-          id: string
-          is_available: boolean
-          price: number
-          sales_count: number
-          seller_id: string
-        }
-        Insert: {
-          created_at?: string
-          entry_id: string
-          id?: string
-          is_available?: boolean
-          price?: number
-          sales_count?: number
-          seller_id: string
-        }
-        Update: {
-          created_at?: string
-          entry_id?: string
-          id?: string
-          is_available?: boolean
-          price?: number
-          sales_count?: number
-          seller_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "marketplace_entry_id_fkey"
-            columns: ["entry_id"]
-            isOneToOne: false
-            referencedRelation: "diary_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       photos: {
         Row: {
           ai_description: string | null
@@ -417,44 +376,6 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "photos_entry_id_fkey"
-            columns: ["entry_id"]
-            isOneToOne: false
-            referencedRelation: "diary_entries"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      transactions: {
-        Row: {
-          amount: number
-          buyer_id: string
-          created_at: string
-          entry_id: string | null
-          id: string
-          platform_fee: number
-          seller_id: string
-        }
-        Insert: {
-          amount: number
-          buyer_id: string
-          created_at?: string
-          entry_id?: string | null
-          id?: string
-          platform_fee?: number
-          seller_id: string
-        }
-        Update: {
-          amount?: number
-          buyer_id?: string
-          created_at?: string
-          entry_id?: string | null
-          id?: string
-          platform_fee?: number
-          seller_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_entry_id_fkey"
             columns: ["entry_id"]
             isOneToOne: false
             referencedRelation: "diary_entries"
