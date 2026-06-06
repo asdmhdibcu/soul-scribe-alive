@@ -22,7 +22,7 @@ import { GoldButton } from "@/components/auth/AuthShell";
 import { askMemory } from "@/lib/memory-search.functions";
 import { usePlan, FREE_LIMITS } from "@/lib/plan";
 import { InlineLock } from "@/components/UpgradeGate";
-import { Link } from "@tanstack/react-router";
+
 
 export const Route = createFileRoute("/_authenticated/vault")({
   head: () => ({ meta: [{ title: "The Vault — ALIVE" }] }),
