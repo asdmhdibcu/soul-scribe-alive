@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateInsights } from "@/lib/insights.functions";
 import { GoldParticles } from "@/components/landing/atmos";
 import { BecomingSection } from "@/components/insights/BecomingSection";
+import { usePlan } from "@/lib/plan";
+import { UpgradeGate } from "@/components/UpgradeGate";
 
 export const Route = createFileRoute("/_authenticated/insights")({
   component: InsightsPage,
@@ -52,6 +54,8 @@ function InsightsPage() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [user, setUser] = useState<UserRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const { plan } = usePlan();
+  const isSoulPlus = plan === "soul" || plan === "family" || plan === "legacy";
 
   useEffect(() => {
     (async () => {
@@ -100,10 +104,18 @@ function InsightsPage() {
         ) : (
           <>
             <ChampionSection scores={scores} />
-            <BecomingSection entries={entries} />
+            {isSoulPlus ? (
+              <BecomingSection entries={entries} />
+            ) : (
+              <UpgradeGate
+                feature="Who You Are Becoming"
+                required="soul"
+                description="Track identity trends — discipline, gratitude, purpose, relationships — across months and years."
+              />
+            )}
             <MoodLandscape data={chartData} stats={moodStats} entries={entries} />
-            <WeeklyPrediction entries={entries} />
-            <PatternCards entries={entries} />
+            {isSoulPlus && <WeeklyPrediction entries={entries} />}
+            {isSoulPlus && <PatternCards entries={entries} />}
             {entries.length === 0 && (
               <EmptyState />
             )}

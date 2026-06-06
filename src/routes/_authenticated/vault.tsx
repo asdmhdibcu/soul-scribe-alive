@@ -20,6 +20,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { askMemory } from "@/lib/memory-search.functions";
+import { usePlan, FREE_LIMITS } from "@/lib/plan";
+import { InlineLock } from "@/components/UpgradeGate";
+
 
 export const Route = createFileRoute("/_authenticated/vault")({
   head: () => ({ meta: [{ title: "The Vault — ALIVE" }] }),
@@ -80,6 +83,14 @@ function VaultPage() {
   const [memAnswer, setMemAnswer] = useState<string | null>(null);
   const [memLoading, setMemLoading] = useState(false);
   const ask = useServerFn(askMemory);
+  const { plan } = usePlan();
+  const unlimitedVault = plan === "soul" || plan === "family" || plan === "legacy";
+  const canMemorySearch = unlimitedVault;
+  const vaultCapDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - FREE_LIMITS.vault_days);
+    return d.toISOString().slice(0, 10);
+  }, []);
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
@@ -147,6 +158,9 @@ function VaultPage() {
           const term = debouncedSearch.replace(/[%_]/g, "");
           q = q.or(`title.ilike.%${term}%,content.ilike.%${term}%`);
         }
+        if (!unlimitedVault) {
+          q = q.gte("date", vaultCapDate);
+        }
 
         const { data, error } = await q;
         if (error) throw error;
@@ -162,7 +176,7 @@ function VaultPage() {
         setLoadingMore(false);
       }
     },
-    [filter, debouncedSearch],
+    [filter, debouncedSearch, unlimitedVault, vaultCapDate],
   );
 
   // Reload on filter / search
@@ -313,19 +327,28 @@ function VaultPage() {
         >
           <button
             type="button"
-            onClick={() => setMemOpen((v) => !v)}
+            onClick={() => {
+              if (!canMemorySearch) return;
+              setMemOpen((v) => !v);
+            }}
             className="w-full flex items-center gap-2.5 px-4 py-3.5 text-left"
           >
             <Sparkles className="h-4 w-4 text-gold-light" />
             <span className="text-sm tracking-wide text-gold-light italic">
               Ask your memory anything
             </span>
-            <span className="ml-auto text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
-              {memOpen ? "Close" : "Open"}
+            <span className="ml-auto flex items-center gap-2">
+              {!canMemorySearch ? (
+                <InlineLock required="soul" />
+              ) : (
+                <span className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">
+                  {memOpen ? "Close" : "Open"}
+                </span>
+              )}
             </span>
           </button>
           <AnimatePresence initial={false}>
-            {memOpen && (
+            {memOpen && canMemorySearch && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
