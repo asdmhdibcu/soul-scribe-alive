@@ -28,6 +28,7 @@ Rules:
 - Speak in second person ("you"). Warm, intelligent, never clinical.`;
 
 export const askMemory = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
