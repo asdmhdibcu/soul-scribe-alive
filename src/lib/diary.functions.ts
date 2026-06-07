@@ -69,6 +69,7 @@ Return ONLY the structured JSON with these fields:
 - coins_earned: integer between 10 and 25 reflecting session depth`;
 
 export const generateDiary = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
