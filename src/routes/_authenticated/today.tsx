@@ -244,7 +244,7 @@ function TodayPage() {
 
 
   return (
-    <div className="fixed inset-0 z-50 bg-background text-foreground overflow-hidden isolate">
+    <div className="fixed inset-x-0 top-16 bottom-0 z-20 bg-background text-foreground overflow-hidden isolate">
       <BackgroundAtmos />
       <AnimatePresence mode="wait">
         {screen === "portal" && (
