@@ -27,6 +27,7 @@ Maximum 2 sentences. No preamble. No greeting. Just the question itself.
 Make it feel like a mirror — not a coach, not a therapist. A question that surprises them with how seen they feel.`;
 
 export const generateReflectionQuestion = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
   .handler(async ({ data }) => {
     const key = process.env.LOVABLE_API_KEY;
