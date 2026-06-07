@@ -292,10 +292,10 @@ export function DiaryPage({
           {saved && (
             <button
               type="button"
-              onClick={() => navigate({ to: "/" })}
+              onClick={() => navigate({ to: "/vault" })}
               className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-3"
             >
-              Close
+              Close → My Vault
             </button>
           )}
         </div>
