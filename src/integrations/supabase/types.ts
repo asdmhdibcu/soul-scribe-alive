@@ -14,26 +14,29 @@ export type Database = {
   }
   public: {
     Tables: {
-      achievements: {
+      briefs: {
         Row: {
-          badge_icon: string | null
-          badge_name: string
-          earned_at: string
+          created_at: string
+          for_date: string
           id: string
+          items_enc: string
+          opened_at: string | null
           user_id: string
         }
         Insert: {
-          badge_icon?: string | null
-          badge_name: string
-          earned_at?: string
+          created_at?: string
+          for_date: string
           id?: string
+          items_enc: string
+          opened_at?: string | null
           user_id: string
         }
         Update: {
-          badge_icon?: string | null
-          badge_name?: string
-          earned_at?: string
+          created_at?: string
+          for_date?: string
           id?: string
+          items_enc?: string
+          opened_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -130,108 +133,33 @@ export type Database = {
         }
         Relationships: []
       }
-      coins_history: {
+      days: {
         Row: {
-          amount: number
-          created_at: string
-          id: string
-          reason: string | null
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string
-          id?: string
-          reason?: string | null
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string
-          id?: string
-          reason?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      diary_entries: {
-        Row: {
-          ai_insight: string | null
-          ai_pattern: string | null
-          ai_tone: string | null
-          cards_swiped: Json | null
-          coins_earned: number
-          content: string | null
           created_at: string
           date: string
-          energy_level: number | null
-          focus_word: string | null
+          energy_enc: string | null
           id: string
-          is_private: boolean
-          life_area: string | null
-          mood_color: string | null
-          mood_x: number | null
-          mood_y: number | null
-          one_answer: string | null
-          one_thing: string | null
-          photos: Json | null
-          session_intent: string | null
-          title: string | null
-          tomorrow_plan: Json | null
+          mood_enc: string | null
+          rendered_enc: string | null
           user_id: string
-          voice_transcript: string | null
         }
         Insert: {
-          ai_insight?: string | null
-          ai_pattern?: string | null
-          ai_tone?: string | null
-          cards_swiped?: Json | null
-          coins_earned?: number
-          content?: string | null
           created_at?: string
-          date?: string
-          energy_level?: number | null
-          focus_word?: string | null
+          date: string
+          energy_enc?: string | null
           id?: string
-          is_private?: boolean
-          life_area?: string | null
-          mood_color?: string | null
-          mood_x?: number | null
-          mood_y?: number | null
-          one_answer?: string | null
-          one_thing?: string | null
-          photos?: Json | null
-          session_intent?: string | null
-          title?: string | null
-          tomorrow_plan?: Json | null
+          mood_enc?: string | null
+          rendered_enc?: string | null
           user_id: string
-          voice_transcript?: string | null
         }
         Update: {
-          ai_insight?: string | null
-          ai_pattern?: string | null
-          ai_tone?: string | null
-          cards_swiped?: Json | null
-          coins_earned?: number
-          content?: string | null
           created_at?: string
           date?: string
-          energy_level?: number | null
-          focus_word?: string | null
+          energy_enc?: string | null
           id?: string
-          is_private?: boolean
-          life_area?: string | null
-          mood_color?: string | null
-          mood_x?: number | null
-          mood_y?: number | null
-          one_answer?: string | null
-          one_thing?: string | null
-          photos?: Json | null
-          session_intent?: string | null
-          title?: string | null
-          tomorrow_plan?: Json | null
+          mood_enc?: string | null
+          rendered_enc?: string | null
           user_id?: string
-          voice_transcript?: string | null
         }
         Relationships: []
       }
@@ -387,49 +315,164 @@ export type Database = {
           },
         ]
       }
-      photos: {
+      moments: {
         Row: {
-          ai_description: string | null
+          audio_path: string | null
+          body_enc: string | null
+          captured_at: string
           created_at: string
-          emotion_context: string | null
-          entry_id: string | null
           id: string
-          location_context: string | null
-          people_detected: Json | null
-          url: string
+          kind: string
+          photo_path: string | null
           user_id: string
         }
         Insert: {
-          ai_description?: string | null
+          audio_path?: string | null
+          body_enc?: string | null
+          captured_at: string
           created_at?: string
-          emotion_context?: string | null
-          entry_id?: string | null
           id?: string
-          location_context?: string | null
-          people_detected?: Json | null
-          url: string
+          kind: string
+          photo_path?: string | null
           user_id: string
         }
         Update: {
-          ai_description?: string | null
+          audio_path?: string | null
+          body_enc?: string | null
+          captured_at?: string
           created_at?: string
-          emotion_context?: string | null
-          entry_id?: string | null
           id?: string
-          location_context?: string | null
-          people_detected?: Json | null
-          url?: string
+          kind?: string
+          photo_path?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      thread_mentions: {
+        Row: {
+          captured_at: string
+          id: string
+          moment_id: string
+          quote_enc: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          captured_at: string
+          id?: string
+          moment_id: string
+          quote_enc: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          id?: string
+          moment_id?: string
+          quote_enc?: string
+          thread_id?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "photos_entry_id_fkey"
-            columns: ["entry_id"]
+            foreignKeyName: "thread_mentions_moment_id_fkey"
+            columns: ["moment_id"]
             isOneToOne: false
-            referencedRelation: "diary_entries"
+            referencedRelation: "moments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "thread_mentions_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "threads"
             referencedColumns: ["id"]
           },
         ]
+      }
+      threads: {
+        Row: {
+          first_seen: string
+          id: string
+          kind_enc: string | null
+          last_seen: string
+          mention_count: number
+          state: string
+          title_enc: string
+          user_id: string
+        }
+        Insert: {
+          first_seen: string
+          id?: string
+          kind_enc?: string | null
+          last_seen: string
+          mention_count?: number
+          state?: string
+          title_enc: string
+          user_id: string
+        }
+        Update: {
+          first_seen?: string
+          id?: string
+          kind_enc?: string | null
+          last_seen?: string
+          mention_count?: number
+          state?: string
+          title_enc?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_keys: {
+        Row: {
+          created_at: string
+          kdf_iterations: number
+          kdf_salt: string
+          user_id: string
+          wrapped_by_password: string
+          wrapped_by_recovery: string
+        }
+        Insert: {
+          created_at?: string
+          kdf_iterations: number
+          kdf_salt: string
+          user_id: string
+          wrapped_by_password: string
+          wrapped_by_recovery: string
+        }
+        Update: {
+          created_at?: string
+          kdf_iterations?: number
+          kdf_salt?: string
+          user_id?: string
+          wrapped_by_password?: string
+          wrapped_by_recovery?: string
+        }
+        Relationships: []
+      }
+      user_prefs: {
+        Row: {
+          brief_email: boolean
+          brief_hour: number
+          mood_enabled: boolean
+          timezone: string
+          user_id: string
+        }
+        Insert: {
+          brief_email?: boolean
+          brief_hour?: number
+          mood_enabled?: boolean
+          timezone?: string
+          user_id: string
+        }
+        Update: {
+          brief_email?: boolean
+          brief_hour?: number
+          mood_enabled?: boolean
+          timezone?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       users: {
         Row: {
