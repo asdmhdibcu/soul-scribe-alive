@@ -549,7 +549,7 @@ function PortalScreen({ onBegin }: { onBegin: () => void }) {
       setName(n);
 
       const today = new Date().toISOString().slice(0, 10);
-      const { data: entry } = await supabase
+      const { data: entry } = await (supabase as any)
         .from("diary_entries")
         .select("id")
         .eq("user_id", u.user.id)

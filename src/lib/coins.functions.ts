@@ -15,7 +15,7 @@ export const awardCoins = createServerFn({ method: "POST" })
   })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { error } = await supabaseAdmin.from("coins_history").insert({
+    const { error } = await (supabaseAdmin as any).from("coins_history").insert({
       user_id: context.userId,
       amount: data.amount,
       reason: data.reason,

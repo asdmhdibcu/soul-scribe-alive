@@ -24,7 +24,7 @@ export const generateTimeline = createServerFn({ method: "POST" })
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
     const { supabase } = context;
-    const { data: entries, error } = await supabase
+    const { data: entries, error } = await (supabase as any)
       .from("diary_entries")
       .select("date,title,content,focus_word,one_thing,mood_color,photos")
       .order("date", { ascending: true });
@@ -50,7 +50,7 @@ export const generateTimeline = createServerFn({ method: "POST" })
 
     const corpus = list
       .map(
-        (e) =>
+        (e: any) =>
           `[${e.date}] ${e.title ?? ""} | focus=${e.focus_word ?? "-"} | one_thing=${e.one_thing ?? "-"}\n  ${(e.content ?? "").slice(0, 220)}`
       )
       .join("\n\n");

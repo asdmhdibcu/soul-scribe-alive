@@ -111,7 +111,7 @@ function VaultPage() {
           .select("streak, coins, time_credits, created_at")
           .eq("id", u.user.id)
           .maybeSingle(),
-        supabase
+        (supabase as any)
           .from("diary_entries")
           .select("id", { count: "exact", head: true })
           .eq("user_id", u.user.id),
@@ -139,7 +139,7 @@ function VaultPage() {
         const { data: u } = await supabase.auth.getUser();
         if (!u.user) return;
 
-        let q = supabase
+        let q = (supabase as any)
           .from("diary_entries")
           .select(
             "id, date, title, content, mood_color, mood_x, mood_y, is_private, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
@@ -223,7 +223,7 @@ function VaultPage() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from("diary_entries")
         .select("date, title, content")
         .eq("user_id", u.user.id)
@@ -243,7 +243,7 @@ function VaultPage() {
 
   async function deleteEntry(id: string) {
     try {
-      const { error } = await supabase.from("diary_entries").delete().eq("id", id);
+      const { error } = await (supabase as any).from("diary_entries").delete().eq("id", id);
       if (error) throw error;
       setEntries((prev) => prev.filter((e) => e.id !== id));
       setStats((s) => ({ ...s, totalPages: Math.max(0, s.totalPages - 1) }));

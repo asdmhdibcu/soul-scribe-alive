@@ -68,7 +68,7 @@ export function DiaryPage({
       const newLongest = Math.max(userRow?.longest_streak ?? 0, newStreak);
       const newLevel = Math.max(1, Math.floor(newCoins / 200) + 1);
 
-      const { error: insertErr } = await supabase.from("diary_entries").upsert(
+      const { error: insertErr } = await (supabase as any).from("diary_entries").upsert(
         {
           user_id: u.user.id,
           date: today,
