@@ -50,7 +50,7 @@ export const generateTimeline = createServerFn({ method: "POST" })
 
     const corpus = list
       .map(
-        (e) =>
+        (e: any) =>
           `[${e.date}] ${e.title ?? ""} | focus=${e.focus_word ?? "-"} | one_thing=${e.one_thing ?? "-"}\n  ${(e.content ?? "").slice(0, 220)}`
       )
       .join("\n\n");
