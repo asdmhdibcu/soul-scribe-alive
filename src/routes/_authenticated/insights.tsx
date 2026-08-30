@@ -62,7 +62,7 @@ function InsightsPage() {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) return;
       const [{ data: ents }, { data: u }] = await Promise.all([
-        supabase
+        (supabase as any)
           .from("diary_entries")
           .select(
             "id,date,title,content,mood_x,mood_y,mood_color,focus_word,one_thing,created_at"

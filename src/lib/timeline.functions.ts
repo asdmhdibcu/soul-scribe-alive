@@ -24,7 +24,7 @@ export const generateTimeline = createServerFn({ method: "POST" })
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
     const { supabase } = context;
-    const { data: entries, error } = await supabase
+    const { data: entries, error } = await (supabase as any)
       .from("diary_entries")
       .select("date,title,content,focus_word,one_thing,mood_color,photos")
       .order("date", { ascending: true });
