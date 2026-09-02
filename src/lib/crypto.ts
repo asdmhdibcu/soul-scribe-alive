@@ -271,12 +271,27 @@ export function onMasterKeyChange(fn: () => void): () => void {
 
 export const encryptField = (plaintext: string) => encrypt(plaintext, requireMasterKey());
 
+/** Sentinel returned when ciphertext cannot be decrypted. Never render as empty. */
+export const DECRYPT_FAILED = "\u0000ALIVE_DECRYPT_FAILED";
+
+export function isDecryptFailure(value: string | null | undefined): boolean {
+  return value === DECRYPT_FAILED;
+}
+
+/** Renders decrypted text, or an explicit failure notice — never silent emptiness. */
+export function renderDecrypted(value: string | null | undefined): string {
+  if (value == null || value === "") return "";
+  return isDecryptFailure(value) ? "This entry could not be decrypted" : value;
+}
+
 export async function decryptField(payload: string | null | undefined): Promise<string> {
   if (!payload) return "";
   try {
     return await decrypt(payload, requireMasterKey());
-  } catch {
-    return "";
+  } catch (err) {
+    if (err instanceof Error && err.message === "VAULT_LOCKED") throw err;
+    console.error("[crypto] decryption failed", err);
+    return DECRYPT_FAILED;
   }
 }
 
@@ -286,10 +301,11 @@ export async function encryptJson(value: unknown): Promise<string> {
 
 export async function decryptJson<T>(payload: string | null | undefined, fallback: T): Promise<T> {
   const text = await decryptField(payload);
-  if (!text) return fallback;
+  if (!text || isDecryptFailure(text)) return fallback;
   try {
     return JSON.parse(text) as T;
   } catch {
     return fallback;
   }
 }
+
