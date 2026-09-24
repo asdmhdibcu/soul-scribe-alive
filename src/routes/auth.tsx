@@ -43,6 +43,17 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const EMAIL_TAKEN =
+  "An account with this email already exists. Sign in instead, or use your recovery code.";
+
+/** Turns Supabase auth errors into plain messages. */
+function friendlyAuthError(message: string, invalidCredentials = "Email or password is incorrect.") {
+  if (/invalid login credentials/i.test(message)) return invalidCredentials;
+  if (/already registered|already exists/i.test(message)) return EMAIL_TAKEN;
+  if (/email not confirmed/i.test(message)) return "Check your inbox to confirm your email first.";
+  return message;
+}
+
 async function routeAfterAuth(userId: string) {
   const { data } = await supabase
     .from("users")
@@ -83,7 +94,7 @@ function SignInForm({ onSwitch, onRecover }: { onSwitch: () => void; onRecover: 
       const to = await routeAfterAuth(user.id);
       navigate({ to });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not sign in.");
+      setError(e instanceof Error ? friendlyAuthError(e.message) : "Could not sign in.");
     } finally {
       setLoading(false);
     }
@@ -197,7 +208,9 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
           data: { name: name.trim() },
         },
       });
-      if (err) throw err;
+      if (err) throw new Error(friendlyAuthError(err.message));
+      // Supabase hides existing emails: it returns a user with no identities.
+      if (data.user && data.user.identities?.length === 0) throw new Error(EMAIL_TAKEN);
 
       let userId = data.user?.id ?? null;
       if (!data.session) {
@@ -205,7 +218,7 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
           email: email.trim(),
           password: authPassword,
         });
-        if (signInErr) throw signInErr;
+        if (signInErr) throw new Error(friendlyAuthError(signInErr.message, EMAIL_TAKEN));
         userId = signedIn.user?.id ?? userId;
       }
       if (!userId) throw new Error("Could not create account.");
