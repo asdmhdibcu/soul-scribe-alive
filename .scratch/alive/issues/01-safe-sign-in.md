@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** in-review (branch claude/01-safe-sign-in)
+**Status:** done
 
 - [ ] No route changes the auth password without re-wrapping the master key
 - [ ] "Forgot password?" opens recovery-code sign-in
