@@ -6,6 +6,7 @@ import { BookMarked, Sparkles } from "lucide-react";
 import { generateTimeline } from "@/lib/timeline.functions";
 import { usePlan } from "@/lib/plan";
 import { UpgradeGate } from "@/components/UpgradeGate";
+import { loadMoments, momentsForAi, quotesInMoments } from "@/lib/moments";
 
 export const Route = createFileRoute("/_authenticated/timeline")({
   head: () => ({ meta: [{ title: "Life Timeline — ALIVE" }] }),
@@ -49,7 +50,18 @@ function TimelinePage() {
   const fetchTimeline = useServerFn(generateTimeline);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["life-timeline"],
-    queryFn: () => fetchTimeline(),
+    queryFn: async () => {
+      // Decrypt here; the server only sees dated text for this one request.
+      const moments = await loadMoments({ limit: 400 });
+      const res = await fetchTimeline({ data: { entries: momentsForAi(moments) } });
+      // Citation law: keep only memories quoted word for word from the moments.
+      return {
+        chapters: res.chapters.map((c) => ({
+          ...c,
+          important_memories: quotesInMoments(c.important_memories, moments),
+        })),
+      };
+    },
     staleTime: 1000 * 60 * 30,
     enabled: can("timeline"),
   });
@@ -66,7 +78,7 @@ function TimelinePage() {
   }
 
   const chapters = (data?.chapters ?? []) as Chapter[];
-  const photos = (data?.photos ?? {}) as Record<string, string[]>;
+  const photos: Record<string, string[]> = {};
   const grouped = groupByYear(chapters);
 
   return (
@@ -82,9 +94,7 @@ function TimelinePage() {
 
       <div className="mx-auto max-w-3xl px-6 pt-16 pb-24">
         <div className="text-center mb-14">
-          <p className="text-[10px] uppercase tracking-[0.5em] text-gold/70 mb-4">
-            Your Archive
-          </p>
+          <p className="text-[10px] uppercase tracking-[0.5em] text-gold/70 mb-4">Your Archive</p>
           <h1 className="font-display tracking-tight text-4xl md:text-5xl text-gold-light">
             Life Timeline
           </h1>
@@ -150,9 +160,7 @@ function TimelinePage() {
                 <div className="space-y-10">
                   {items.map((c, i) => {
                     const side = i % 2 === 0 ? "left" : "right";
-                    const chapterPhotos = c.entry_dates
-                      .flatMap((d) => photos[d] ?? [])
-                      .slice(0, 4);
+                    const chapterPhotos = c.entry_dates.flatMap((d) => photos[d] ?? []).slice(0, 4);
                     return (
                       <motion.article
                         key={`${year}-${i}`}
@@ -177,16 +185,13 @@ function TimelinePage() {
                               "linear-gradient(180deg, rgba(28,28,40,0.92), rgba(18,18,28,0.92))",
                             border: "1px solid rgba(240,201,106,0.28)",
                             borderTop: "2px solid rgba(240,201,106,0.6)",
-                            boxShadow:
-                              "0 24px 60px -30px rgba(240,201,106,0.25)",
+                            boxShadow: "0 24px 60px -30px rgba(240,201,106,0.25)",
                           }}
                         >
                           <p className="text-[10px] uppercase tracking-[0.35em] text-gold/70">
                             {fmt(c.start_date)} — {fmt(c.end_date)}
                           </p>
-                          <h3 className="mt-2 font-display text-2xl text-gold-light">
-                            {c.title}
-                          </h3>
+                          <h3 className="mt-2 font-display text-2xl text-gold-light">{c.title}</h3>
                           <p
                             className="mt-4 text-[15px] leading-relaxed text-foreground/85"
                             style={{ fontFamily: "Georgia, serif" }}
@@ -213,10 +218,7 @@ function TimelinePage() {
                           {c.important_memories?.length > 0 && (
                             <ul className="mt-5 space-y-1.5">
                               {c.important_memories.map((m, j) => (
-                                <li
-                                  key={j}
-                                  className="text-sm text-foreground/75 flex gap-2"
-                                >
+                                <li key={j} className="text-sm text-foreground/75 flex gap-2">
                                   <span className="text-gold/70">◆</span>
                                   <span>{m}</span>
                                 </li>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -7,11 +7,11 @@ import {
   BookOpen,
   Coins,
   Flame,
-  Lock,
+  ImageIcon,
+  Mic,
   Search,
   Sparkles,
   Star,
-  
   Timer,
   Trash2,
   X,
@@ -22,7 +22,14 @@ import { GoldButton } from "@/components/auth/AuthShell";
 import { askMemory } from "@/lib/memory-search.functions";
 import { usePlan, FREE_LIMITS } from "@/lib/plan";
 import { InlineLock } from "@/components/UpgradeGate";
-
+import {
+  deleteMoment,
+  filterMoments,
+  loadMoments,
+  momentsForAi,
+  openMedia,
+  type Moment,
+} from "@/lib/moments";
 
 export const Route = createFileRoute("/_authenticated/vault")({
   head: () => ({ meta: [{ title: "The Vault — ALIVE" }] }),
@@ -37,26 +44,10 @@ export const Route = createFileRoute("/_authenticated/vault")({
   component: VaultPage,
 });
 
-type Filter = "all" | "private" | "favorites" | "month";
+type Filter = "all" | "text" | "voice" | "photo" | "favorites" | "month";
+type Entry = Moment;
 
-type Entry = {
-  id: string;
-  date: string;
-  title: string | null;
-  content: string | null;
-  mood_color: string | null;
-  mood_x: number | null;
-  mood_y: number | null;
-  is_private: boolean;
-  coins_earned: number;
-  ai_insight: string | null;
-  focus_word: string | null;
-  one_thing: string | null;
-  tomorrow_plan: Record<string, string> | null;
-  photos: string[] | null;
-};
-
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 60;
 
 function VaultPage() {
   const navigate = useNavigate();
@@ -69,9 +60,7 @@ function VaultPage() {
   });
   const [entries, setEntries] = useState<Entry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [done, setDone] = useState(false);
-  const [page, setPage] = useState(0);
+  const [shown, setShown] = useState(PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -92,8 +81,6 @@ function VaultPage() {
     return d.toISOString().slice(0, 10);
   }, []);
 
-  const sentinelRef = useRef<HTMLDivElement>(null);
-
   // Debounce search
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 280);
@@ -111,8 +98,8 @@ function VaultPage() {
           .select("streak, coins, time_credits, created_at")
           .eq("id", u.user.id)
           .maybeSingle(),
-        (supabase as any)
-          .from("diary_entries")
+        supabase
+          .from("moments")
           .select("id", { count: "exact", head: true })
           .eq("user_id", u.user.id),
       ]);
@@ -131,106 +118,49 @@ function VaultPage() {
     })();
   }, []);
 
-  const fetchPage = useCallback(
-    async (nextPage: number, replace = false) => {
-      if (nextPage === 0) setLoading(true);
-      else setLoadingMore(true);
+  // Load and decrypt on this device. Search and filters run on the plaintext
+  // here, because the server only holds ciphertext.
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
       try {
-        const { data: u } = await supabase.auth.getUser();
-        if (!u.user) return;
-
-        let q = (supabase as any)
-          .from("diary_entries")
-          .select(
-            "id, date, title, content, mood_color, mood_x, mood_y, is_private, coins_earned, ai_insight, focus_word, one_thing, tomorrow_plan, photos",
-          )
-          .eq("user_id", u.user.id)
-          .order("date", { ascending: false })
-          .range(nextPage * PAGE_SIZE, nextPage * PAGE_SIZE + PAGE_SIZE - 1);
-
-        if (filter === "private") q = q.eq("is_private", true);
-        if (filter === "month") {
-          const first = new Date();
-          first.setDate(1);
-          q = q.gte("date", first.toISOString().slice(0, 10));
-        }
-        if (debouncedSearch) {
-          const term = debouncedSearch.replace(/[%_]/g, "");
-          q = q.or(`title.ilike.%${term}%,content.ilike.%${term}%`);
-        }
-        if (!unlimitedVault) {
-          q = q.gte("date", vaultCapDate);
-        }
-
-        const { data, error } = await q;
-        if (error) throw error;
-        const rows = (data ?? []) as unknown as Entry[];
-        setEntries((prev) => (replace ? rows : [...prev, ...rows]));
-        setDone(rows.length < PAGE_SIZE);
-        setPage(nextPage);
+        setEntries(await loadMoments({ sinceDay: unlimitedVault ? undefined : vaultCapDate }));
       } catch (e) {
         console.error(e);
         toast.error("Could not load your vault.");
       } finally {
         setLoading(false);
-        setLoadingMore(false);
       }
-    },
-    [filter, debouncedSearch, unlimitedVault, vaultCapDate],
-  );
+    })();
+  }, [unlimitedVault, vaultCapDate]);
 
-  // Reload on filter / search
-  useEffect(() => {
-    setEntries([]);
-    setDone(false);
-    setPage(0);
-    fetchPage(0, true);
-  }, [filter, debouncedSearch, fetchPage]);
+  useEffect(() => setShown(PAGE_SIZE), [filter, debouncedSearch]);
 
-  // Infinite scroll
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entriesObs) => {
-        if (entriesObs[0].isIntersecting && !loading && !loadingMore && !done) {
-          fetchPage(page + 1);
-        }
-      },
-      { rootMargin: "400px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [page, loading, loadingMore, done, fetchPage]);
-
-  // Apply favorites filter client-side (no column yet)
   const visible = useMemo(() => {
-    if (filter === "favorites") {
-      try {
-        const favs = JSON.parse(localStorage.getItem("alive:favs") ?? "[]") as string[];
-        return entries.filter((e) => favs.includes(e.id));
-      } catch {
-        return [];
-      }
+    const base = filterMoments(entries, {
+      search: debouncedSearch,
+      kind: filter === "text" || filter === "voice" || filter === "photo" ? filter : undefined,
+      since:
+        filter === "month"
+          ? new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+          : undefined,
+    });
+    if (filter !== "favorites") return base;
+    try {
+      const favs = JSON.parse(localStorage.getItem("alive:favs") ?? "[]") as string[];
+      return base.filter((e) => favs.includes(e.id));
+    } catch {
+      return [];
     }
-    return entries;
-  }, [entries, filter]);
+  }, [entries, filter, debouncedSearch]);
 
   async function handleAsk() {
     if (!memQuestion.trim()) return;
     setMemLoading(true);
     setMemAnswer(null);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const { data } = await (supabase as any)
-        .from("diary_entries")
-        .select("date, title, content")
-        .eq("user_id", u.user.id)
-        .order("date", { ascending: false })
-        .limit(120);
       const res = await ask({
-        data: { question: memQuestion.trim(), entries: (data ?? []) as never },
+        data: { question: memQuestion.trim(), entries: momentsForAi(entries).slice(0, 120) },
       });
       setMemAnswer(res.answer);
     } catch (e) {
@@ -242,19 +172,19 @@ function VaultPage() {
   }
 
   async function deleteEntry(id: string) {
+    const target = entries.find((e) => e.id === id);
+    if (!target) return;
     try {
-      const { error } = await (supabase as any).from("diary_entries").delete().eq("id", id);
-      if (error) throw error;
+      await deleteMoment(target);
       setEntries((prev) => prev.filter((e) => e.id !== id));
       setStats((s) => ({ ...s, totalPages: Math.max(0, s.totalPages - 1) }));
       setActiveEntry(null);
       setConfirmDelete(null);
-      toast.success("Page removed.");
+      toast.success("Moment removed.");
     } catch {
       toast.error("Could not delete.");
     }
   }
-
 
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -284,9 +214,23 @@ function VaultPage() {
 
         {/* Stats */}
         <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard icon={<BookOpen className="h-4 w-4" />} label="Total Pages" value={stats.totalPages} />
-          <StatCard icon={<Flame className="h-4 w-4" />} label="Current Streak" value={stats.streak} suffix={stats.streak === 1 ? "day" : "days"} />
-          <StatCard icon={<Timer className="h-4 w-4" />} label="Time Credits" value={stats.timeCredits} suffix="min" />
+          <StatCard
+            icon={<BookOpen className="h-4 w-4" />}
+            label="Total Pages"
+            value={stats.totalPages}
+          />
+          <StatCard
+            icon={<Flame className="h-4 w-4" />}
+            label="Current Streak"
+            value={stats.streak}
+            suffix={stats.streak === 1 ? "day" : "days"}
+          />
+          <StatCard
+            icon={<Timer className="h-4 w-4" />}
+            label="Time Credits"
+            value={stats.timeCredits}
+            suffix="min"
+          />
           <StatCard icon={<Coins className="h-4 w-4" />} label="Coins Earned" value={stats.coins} />
         </div>
 
@@ -310,10 +254,24 @@ function VaultPage() {
         {/* Filters */}
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <FilterTab active={filter === "all"} onClick={() => setFilter("all")} label="All" />
-          <FilterTab active={filter === "private"} onClick={() => setFilter("private")} label="Private" icon="🔐" />
-          
-          <FilterTab active={filter === "favorites"} onClick={() => setFilter("favorites")} label="Favorites" icon="⭐" />
-          <FilterTab active={filter === "month"} onClick={() => setFilter("month")} label="This Month" />
+          <FilterTab active={filter === "text"} onClick={() => setFilter("text")} label="Written" />
+          <FilterTab active={filter === "voice"} onClick={() => setFilter("voice")} label="Voice" />
+          <FilterTab
+            active={filter === "photo"}
+            onClick={() => setFilter("photo")}
+            label="Photos"
+          />
+          <FilterTab
+            active={filter === "favorites"}
+            onClick={() => setFilter("favorites")}
+            label="Favorites"
+            icon="⭐"
+          />
+          <FilterTab
+            active={filter === "month"}
+            onClick={() => setFilter("month")}
+            label="This Month"
+          />
         </div>
 
         {/* Memory search */}
@@ -321,8 +279,7 @@ function VaultPage() {
           className="mt-5 rounded-2xl overflow-hidden"
           style={{
             border: "1px solid rgba(240,201,106,0.25)",
-            background:
-              "linear-gradient(160deg, rgba(240,201,106,0.06), rgba(22,22,31,0.6))",
+            background: "linear-gradient(160deg, rgba(240,201,106,0.06), rgba(22,22,31,0.6))",
           }}
         >
           <button
@@ -407,10 +364,13 @@ function VaultPage() {
           {loading ? (
             <SkeletonGrid />
           ) : visible.length === 0 ? (
-            <EmptyState onBegin={() => navigate({ to: "/today" })} hasSearch={!!debouncedSearch || filter !== "all"} />
+            <EmptyState
+              onBegin={() => navigate({ to: "/today" })}
+              hasSearch={!!debouncedSearch || filter !== "all"}
+            />
           ) : (
             <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 [column-fill:_balance]">
-              {visible.map((entry) => (
+              {visible.slice(0, shown).map((entry) => (
                 <EntryCard
                   key={entry.id}
                   entry={entry}
@@ -421,8 +381,17 @@ function VaultPage() {
             </div>
           )}
 
-          {loadingMore && <div className="mt-6"><SkeletonGrid rows={2} /></div>}
-          <div ref={sentinelRef} className="h-10" />
+          {!loading && visible.length > shown && (
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => setShown((n) => n + PAGE_SIZE)}
+                className="text-xs uppercase tracking-[0.3em] text-gold-light/80 hover:text-gold-light"
+              >
+                Show more
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -433,7 +402,6 @@ function VaultPage() {
             entry={activeEntry}
             onClose={() => setActiveEntry(null)}
             onDelete={() => setConfirmDelete(activeEntry.id)}
-            
           />
         )}
       </AnimatePresence>
@@ -531,7 +499,9 @@ function StatCard({
       </div>
       <p className="mt-2 font-display text-2xl text-gold-light">
         {value}
-        {suffix && <span className="ml-1 text-xs text-muted-foreground tracking-normal">{suffix}</span>}
+        {suffix && (
+          <span className="ml-1 text-xs text-muted-foreground tracking-normal">{suffix}</span>
+        )}
       </p>
     </div>
   );
@@ -554,9 +524,7 @@ function FilterTab({
       onClick={onClick}
       className="shrink-0 px-4 h-9 rounded-full text-xs tracking-wide transition"
       style={{
-        border: active
-          ? "1px solid rgba(240,201,106,0.6)"
-          : "1px solid rgba(240,201,106,0.18)",
+        border: active ? "1px solid rgba(240,201,106,0.6)" : "1px solid rgba(240,201,106,0.18)",
         background: active
           ? "linear-gradient(160deg, rgba(240,201,106,0.22), rgba(22,22,31,0.6))"
           : "rgba(22,22,31,0.5)",
@@ -578,9 +546,11 @@ function EntryCard({
   onOpen: () => void;
   onDelete: () => void;
 }) {
-  const date = new Date(entry.date);
-  const preview = (entry.content ?? "").trim().split("\n")[0].slice(0, 140);
-  const moodColor = entry.mood_color ?? "rgba(240,201,106,0.4)";
+  const date = new Date(entry.capturedAt);
+  const preview = entry.decryptFailed
+    ? UNDECRYPTABLE
+    : (entry.text ?? "").trim().split("\n")[0].slice(0, 140);
+  const moodColor = "rgba(240,201,106,0.4)";
 
   // Swipe to delete
   const startX = useRef<number | null>(null);
@@ -627,13 +597,14 @@ function EntryCard({
                 year: "numeric",
               })}
             </span>
-            <div className="flex items-center gap-1.5">
-              {entry.is_private && <Lock className="h-3 w-3 text-gold-light/70" />}
+            <div className="flex items-center gap-1.5 text-gold-light/70">
+              {entry.hasAudio && <Mic className="h-3 w-3" aria-label="Voice" />}
+              {entry.hasPhoto && <ImageIcon className="h-3 w-3" aria-label="Photo" />}
             </div>
           </div>
 
           <h3 className="mt-2 font-display text-lg leading-snug text-gold-light tracking-tight">
-            {entry.title ?? "Untitled"}
+            {momentLabel(entry)}
           </h3>
           {preview && (
             <p
@@ -668,15 +639,19 @@ function EntryModal({
   onClose: () => void;
   onDelete: () => void;
 }) {
-  const moodColor = entry.mood_color ?? "rgba(240,201,106,0.4)";
-  const date = new Date(entry.date);
+  const moodColor = "rgba(240,201,106,0.4)";
+  const date = new Date(entry.capturedAt);
   const [isFav, setIsFav] = useState(false);
+  const photoUrl = useMediaUrl(entry.photoPath, "image/jpeg");
+  const audioUrl = useMediaUrl(entry.audioPath, "audio/webm");
 
   useEffect(() => {
     try {
       const favs = JSON.parse(localStorage.getItem("alive:favs") ?? "[]") as string[];
       setIsFav(favs.includes(entry.id));
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
   }, [entry.id]);
 
   function toggleFav() {
@@ -687,10 +662,10 @@ function EntryModal({
         : [...favs, entry.id];
       localStorage.setItem("alive:favs", JSON.stringify(next));
       setIsFav(next.includes(entry.id));
-    } catch { /* empty */ }
+    } catch {
+      /* empty */
+    }
   }
-
-  const plan = entry.tomorrow_plan ?? {};
 
   return (
     <motion.div
@@ -753,7 +728,8 @@ function EntryModal({
               month: "long",
               day: "numeric",
               year: "numeric",
-            })}
+            })}{" "}
+            · {date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
           </p>
           <div
             className="mt-3 h-[3px] rounded-full"
@@ -767,10 +743,14 @@ function EntryModal({
             className="mt-8 text-center font-display tracking-tight text-3xl md:text-5xl text-gold-light"
             style={{ textShadow: "0 0 36px rgba(240,201,106,0.35)" }}
           >
-            {entry.title ?? "Untitled"}
+            {momentLabel(entry)}
           </h1>
 
-          {entry.content && (
+          {entry.decryptFailed && (
+            <p className="mt-8 text-center text-sm text-red-300/90">{UNDECRYPTABLE}</p>
+          )}
+
+          {entry.text && (
             <div
               className="mt-8 pl-5 whitespace-pre-line"
               style={{
@@ -781,88 +761,25 @@ function EntryModal({
                 fontSize: "17px",
               }}
             >
-              {entry.content}
+              {entry.text}
             </div>
           )}
 
-          {entry.photos && entry.photos.length > 0 && (
-            <div className="mt-8 space-y-4">
-              {entry.photos.map((url, i) => (
-                <img
-                  key={i}
-                  src={url}
-                  alt="Memory"
-                  className="w-full rounded-2xl"
-                  style={{ boxShadow: "0 0 0 1px rgba(240,201,106,0.18)" }}
-                />
-              ))}
-            </div>
-          )}
+          {audioUrl && <audio controls src={audioUrl} className="mt-8 w-full" />}
 
-          {entry.ai_insight && (
-            <div
-              className="mt-10 rounded-2xl p-5"
-              style={{
-                background: "rgba(240,201,106,0.08)",
-                border: "1px solid rgba(240,201,106,0.4)",
-              }}
-            >
-              <p className="text-[10px] uppercase tracking-[0.4em] text-gold-light/80">
-                ◎ ALIVE noticed
-              </p>
-              <p
-                className="mt-2 text-base text-foreground/90 italic"
-                style={{ fontFamily: "Georgia, serif", lineHeight: 1.7 }}
-              >
-                {entry.ai_insight}
-              </p>
-            </div>
-          )}
-
-          {(plan.morning_mission || plan.focus_word || plan.one_thing) && (
-            <>
-              <div className="mt-12 flex items-center gap-4">
-                <div className="flex-1 h-px bg-gold/30" />
-                <p className="text-[10px] uppercase tracking-[0.5em] text-gold-light/80">
-                  That Tomorrow
-                </p>
-                <div className="flex-1 h-px bg-gold/30" />
-              </div>
-              <div className="mt-6 grid grid-cols-1 gap-3">
-                {plan.morning_mission && <PlanCard icon="🌅" title="Morning Mission" body={plan.morning_mission} />}
-                {plan.focus_word && <PlanCard icon="⚡" title="Focus Word" body={plan.focus_word} />}
-                {plan.one_thing && <PlanCard icon="🎯" title="The One Thing" body={plan.one_thing} />}
-                {plan.energy_forecast && <PlanCard icon="📊" title="Energy Forecast" body={plan.energy_forecast} />}
-                {plan.tonight_intention && <PlanCard icon="💭" title="Tonight" body={plan.tonight_intention} />}
-              </div>
-            </>
+          {photoUrl && (
+            <img
+              src={photoUrl}
+              alt="Memory"
+              className="mt-8 w-full rounded-2xl"
+              style={{ boxShadow: "0 0 0 1px rgba(240,201,106,0.18)" }}
+            />
           )}
 
           <div className="mt-10 mb-12" />
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-function PlanCard({ icon, title, body }: { icon: string; title: string; body: string }) {
-  return (
-    <div
-      className="rounded-2xl p-4"
-      style={{
-        background: "linear-gradient(180deg, rgba(28,28,40,0.95), rgba(18,18,28,0.95))",
-        border: "1px solid rgba(240,201,106,0.18)",
-        borderTop: "2px solid rgba(240,201,106,0.5)",
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <span>{icon}</span>
-        <p className="text-[10px] uppercase tracking-[0.3em] text-gold-light/80">{title}</p>
-      </div>
-      <p className="mt-2 text-sm text-foreground/85" style={{ fontFamily: "Georgia, serif" }}>
-        {body}
-      </p>
-    </div>
   );
 }
 
@@ -913,14 +830,9 @@ function EmptyState({ onBegin, hasSearch }: { onBegin: () => void; hasSearch: bo
           animate={{ scale: [1, 1.06, 1] }}
           transition={{ duration: 3.4, repeat: Infinity, ease: "easeInOut" }}
         />
-        <BookOpen
-          className="absolute inset-0 m-auto h-10 w-10 text-background"
-          strokeWidth={1.4}
-        />
+        <BookOpen className="absolute inset-0 m-auto h-10 w-10 text-background" strokeWidth={1.4} />
       </div>
-      <p className="font-display text-2xl md:text-3xl text-gold-light">
-        Your vault is empty.
-      </p>
+      <p className="font-display text-2xl md:text-3xl text-gold-light">Your vault is empty.</p>
       <p className="mt-3 text-base text-muted-foreground italic max-w-xs mx-auto">
         Your first story is one session away.
       </p>
@@ -931,4 +843,36 @@ function EmptyState({ onBegin, hasSearch }: { onBegin: () => void; hasSearch: bo
       </div>
     </div>
   );
+}
+
+const UNDECRYPTABLE = "This entry could not be decrypted.";
+
+function momentLabel(m: Moment) {
+  if (m.decryptFailed) return "Sealed moment";
+  if (m.kind === "voice") return "Voice note";
+  if (m.kind === "photo" && !m.text) return "Photo";
+  return "Written";
+}
+
+/** Decrypts a stored photo or recording on demand; revokes the URL on close. */
+function useMediaUrl(path: string | null, type: string) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!path) return;
+    let current: string | null = null;
+    let cancelled = false;
+    openMedia(path, type)
+      .then((u) => {
+        current = u;
+        if (!cancelled) setUrl(u);
+      })
+      .catch(() => {
+        if (!cancelled) setUrl(null);
+      });
+    return () => {
+      cancelled = true;
+      if (current) URL.revokeObjectURL(current);
+    };
+  }, [path, type]);
+  return url;
 }

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** in-review (branch claude/02-vault-timeline-moments)
 
 - [ ] Vault and Timeline load with no runtime error when unlocked
 - [ ] Entries shown are decrypted moments, newest first
