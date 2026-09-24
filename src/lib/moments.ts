@@ -1,5 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
-import { decryptBlob, decryptField, isDecryptFailure, requireMasterKey } from "@/lib/crypto";
+import {
+  decryptBlob,
+  decryptField,
+  decryptJson,
+  encryptField,
+  encryptJson,
+  isDecryptFailure,
+  requireMasterKey,
+} from "@/lib/crypto";
+import { daysWrittenInLast, type DayMood } from "@/lib/writing-stats";
 import { toMoment, type Moment, type MomentRow } from "@/lib/moments-model";
 
 export type { Moment } from "@/lib/moments-model";
@@ -42,4 +51,75 @@ export async function openMedia(path: string, type: string): Promise<string> {
   if (error || !data) throw error ?? new Error("Could not load media.");
   const plain = await decryptBlob(data, requireMasterKey());
   return URL.createObjectURL(new Blob([plain], { type }));
+}
+
+const todayUtc = () => new Date().toISOString().slice(0, 10);
+
+/** "You've written X of the last 30 days". Reads timestamps only, no content. */
+export async function loadDaysWritten(n = 30) {
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - (n - 1));
+  const { data, error } = await supabase
+    .from("moments")
+    .select("captured_at")
+    .gte("captured_at", `${since.toISOString().slice(0, 10)}T00:00:00Z`);
+  if (error) throw error;
+  const days = (data ?? []).map((r) => (r.captured_at as string).slice(0, 10));
+  return daysWrittenInLast(days, todayUtc(), n);
+}
+
+/**
+ * Saves a finished reflection session. The person's own words become a
+ * moment (the canonical record); the AI-written page and the mood go to the
+ * day row as derived, regenerable views.
+ */
+export async function saveSessionDay(opts: {
+  rawText: string;
+  rendered: { title: string; content: string };
+  mood: DayMood;
+}) {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("Not signed in");
+  const now = new Date().toISOString();
+  if (opts.rawText.trim()) {
+    const { error } = await supabase.from("moments").insert({
+      user_id: u.user.id,
+      captured_at: now,
+      kind: "text",
+      body_enc: await encryptField(opts.rawText),
+    });
+    if (error) throw error;
+  }
+  const { error: dayErr } = await supabase.from("days").upsert(
+    {
+      user_id: u.user.id,
+      date: now.slice(0, 10),
+      rendered_enc: await encryptJson(opts.rendered),
+      mood_enc: opts.mood ? await encryptJson(opts.mood) : null,
+    },
+    { onConflict: "user_id,date" },
+  );
+  if (dayErr) throw dayErr;
+}
+
+/** Whether today's reflection session has already been saved. */
+export async function hasSessionToday() {
+  const { data } = await supabase
+    .from("days")
+    .select("id")
+    .eq("date", todayUtc())
+    .not("rendered_enc", "is", null)
+    .maybeSingle();
+  return Boolean(data);
+}
+
+/** Decrypted moods per day, for Insights. */
+export async function loadDayMoods(): Promise<Record<string, DayMood>> {
+  const { data, error } = await supabase.from("days").select("date, mood_enc");
+  if (error) throw error;
+  const out: Record<string, DayMood> = {};
+  for (const r of data ?? []) {
+    if (r.mood_enc) out[r.date as string] = await decryptJson<DayMood>(r.mood_enc, null);
+  }
+  return out;
 }

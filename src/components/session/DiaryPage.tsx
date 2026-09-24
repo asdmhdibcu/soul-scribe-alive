@@ -2,23 +2,18 @@ import { useState } from "react";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
-import { supabase } from "@/integrations/supabase/client";
-import { useServerFn } from "@tanstack/react-start";
-import { awardCoins } from "@/lib/coins.functions";
+import { saveSessionDay } from "@/lib/moments";
 import { GoldButton } from "@/components/auth/AuthShell";
 import type { DiaryResult } from "@/lib/diary.functions";
-import type { SwipeResult } from "@/components/session/SparkCards";
 
 type Props = {
   diary: DiaryResult;
   moodColor: string;
   moodX: number;
   moodY: number;
-  cards: SwipeResult[];
   photos: string[];
-  voiceTranscript: string;
-  oneAnswer: string;
-  aiTone: string | null;
+  /** The person's own words from the session; saved as the canonical moment. */
+  rawText: string;
 };
 
 export function DiaryPage({
@@ -26,14 +21,10 @@ export function DiaryPage({
   moodColor,
   moodX,
   moodY,
-  cards,
   photos,
-  voiceTranscript,
-  oneAnswer,
-  aiTone,
+  rawText,
 }: Props) {
   const navigate = useNavigate();
-  const awardCoinsFn = useServerFn(awardCoins);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [confetti, setConfetti] = useState(false);
@@ -49,76 +40,15 @@ export function DiaryPage({
     if (saving) return;
     setSaving(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Not signed in");
-
-      const today = new Date().toISOString().slice(0, 10);
-
-      // Pull current user stats
-      const { data: userRow } = await supabase
-        .from("users")
-        .select("streak, longest_streak, coins, total_sessions, level")
-        .eq("id", u.user.id)
-        .maybeSingle();
-
-      const prevStreak = userRow?.streak ?? 0;
-      const newStreak = prevStreak + 1;
-      const newCoins = (userRow?.coins ?? 0) + diary.coins_earned;
-      const newSessions = (userRow?.total_sessions ?? 0) + 1;
-      const newLongest = Math.max(userRow?.longest_streak ?? 0, newStreak);
-      const newLevel = Math.max(1, Math.floor(newCoins / 200) + 1);
-
-      const { error: insertErr } = await (supabase as any).from("diary_entries").upsert(
-        {
-          user_id: u.user.id,
-          date: today,
-          title: diary.title,
-          content: diary.content,
-          mood_color: moodColor,
-          mood_x: moodX,
-          mood_y: moodY,
-          ai_tone: aiTone,
-          cards_swiped: cards as never,
-          photos: photos as never,
-          voice_transcript: voiceTranscript || null,
-          one_answer: oneAnswer || null,
-          ai_insight: diary.ai_insight,
-          focus_word: diary.focus_word,
-          one_thing: diary.one_thing,
-          tomorrow_plan: {
-            morning_mission: diary.morning_mission,
-            focus_word: diary.focus_word,
-            one_thing: diary.one_thing,
-            energy_forecast: diary.energy_forecast,
-            tonight_intention: diary.tonight_intention,
-          } as never,
-          coins_earned: diary.coins_earned,
-          is_private: true,
-        },
-        { onConflict: "user_id,date" },
-      );
-      if (insertErr) throw insertErr;
-
-      await supabase
-        .from("users")
-        .update({
-          streak: newStreak,
-          longest_streak: newLongest,
-          coins: newCoins,
-          total_sessions: newSessions,
-          level: newLevel,
-        })
-        .eq("id", u.user.id);
-
-      try {
-        await awardCoinsFn({ data: { amount: diary.coins_earned, reason: "Daily session completed" } });
-      } catch (e) {
-        console.error("awardCoins failed", e);
-      }
+      await saveSessionDay({
+        rawText,
+        rendered: { title: diary.title, content: diary.content },
+        mood: { x: moodX, y: moodY, color: moodColor },
+      });
 
       setSaved(true);
       setConfetti(true);
-      toast.success(`Day ${newSessions} complete 🏆  +${diary.coins_earned} coins`);
+      toast.success("Saved to your Vault.");
       setTimeout(() => setConfetti(false), 2400);
     } catch (e) {
       console.error(e);
@@ -160,16 +90,6 @@ export function DiaryPage({
           >
             <span className="text-base leading-none">{diary.mood_emoji}</span>
             <span className="text-gold-light italic">{diary.mood_label}</span>
-          </span>
-          <span
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs text-gold-light"
-            style={{
-              border: "1px solid rgba(240,201,106,0.5)",
-              background:
-                "linear-gradient(160deg, rgba(240,201,106,0.18), rgba(22,22,31,0.6))",
-            }}
-          >
-            +{diary.coins_earned} coins ✨
           </span>
         </div>
 

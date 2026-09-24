@@ -44,7 +44,7 @@ const TIERS: Tier[] = [
       "Daily Reflection: Mood Orb, Spark Cards, One Question, My Story, AI Diary",
       "Vault: last 90 days",
       "Basic mood tracking",
-      "Streak tracking",
+      "Days written (no streaks)",
       "Draft Recovery",
       "50 photos · 20 voice memories",
     ],

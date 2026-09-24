@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform, type MotionValue, type PanInfo } from "motion/react";
-import { X, Flame, Check, ArrowRight, Star, ArrowDown } from "lucide-react";
+import { X, Check, ArrowRight, Star, ArrowDown } from "lucide-react";
 
 export type Swipe = "right" | "left" | "up" | "down";
 export type SwipeResult = { card: string; emoji: string; category: string; swipe: Swipe };
@@ -69,11 +69,9 @@ const SWIPE_DISTANCE = 90;
 const SWIPE_VELOCITY = 500;
 
 export function SparkCards({
-  streak,
   onExit,
   onComplete,
 }: {
-  streak: number;
   onExit: () => void;
   onComplete: (results: SwipeResult[]) => void;
 }) {
@@ -117,10 +115,7 @@ export function SparkCards({
         <div className="text-[11px] uppercase tracking-[0.4em] text-gold-light">
           {Math.min(index + 1, cards.length)} of {cards.length}
         </div>
-        <div className="flex items-center gap-1.5 px-3 h-10 rounded-full border border-gold/25 bg-card/60">
-          <Flame className="h-4 w-4 text-gold-light" />
-          <span className="font-display text-sm text-gold-light">{streak}</span>
-        </div>
+        <div className="h-10 w-10" aria-hidden />
       </div>
 
       {/* Progress bar */}
@@ -444,24 +439,6 @@ function SummaryCard({
           <span className="text-gold-light not-italic">{summary.needs}</span> need
           attention.
         </p>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.6 }}
-          className="mt-8 inline-flex items-center gap-2 px-5 py-2.5 rounded-full"
-          style={{
-            background:
-              "linear-gradient(160deg, rgba(201,168,76,0.18), rgba(22,22,31,0.6))",
-            border: "1px solid rgba(240,201,106,0.5)",
-            boxShadow: "0 0 24px rgba(240,201,106,0.35)",
-          }}
-        >
-          <span className="text-base">🪙</span>
-          <span className="text-sm tracking-[0.2em] uppercase text-gold-light">
-            +5 coins
-          </span>
-        </motion.div>
       </div>
     </div>
   );

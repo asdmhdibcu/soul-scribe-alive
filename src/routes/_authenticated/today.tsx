@@ -4,6 +4,8 @@ import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/re
 import { ArrowRight } from "lucide-react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { hasSessionToday } from "@/lib/moments";
+import { sessionRawText } from "@/lib/writing-stats";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
@@ -44,7 +46,6 @@ function TodayPage() {
   const navigate = useNavigate();
   const [screen, setScreen] = useState<Screen>("portal");
   const [session, setSession] = useState<SessionState | null>(null);
-  const [streak, setStreak] = useState(0);
   const [aiTone, setAiTone] = useState<string | null>(null);
   const [userName, setUserName] = useState("friend");
   const [diary, setDiary] = useState<DiaryResult | null>(null);
@@ -71,10 +72,9 @@ function TodayPage() {
       if (!u.user) return;
       const { data } = await supabase
         .from("users")
-        .select("streak, ai_tone, name")
+        .select("ai_tone, name")
         .eq("id", u.user.id)
         .maybeSingle();
-      setStreak(data?.streak ?? 0);
       setAiTone(data?.ai_tone ?? null);
       setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
 
@@ -286,7 +286,6 @@ function TodayPage() {
             transition={{ duration: 0.45 }}
           >
             <SparkCards
-              streak={streak}
               onExit={() => navigate({ to: "/" })}
               onComplete={(results) => {
                 setSession((s) => (s ? { ...s, cards_swiped: results } : s));
@@ -391,11 +390,16 @@ function TodayPage() {
               moodColor={session.mood_color}
               moodX={session.mood_x}
               moodY={session.mood_y}
-              cards={session.cards_swiped ?? []}
               photos={session.memory?.photos ?? []}
-              voiceTranscript={session.memory?.voice_transcript ?? ""}
-              oneAnswer={session.answer?.answer_text ?? ""}
-              aiTone={aiTone}
+              rawText={sessionRawText({
+                oneAnswer: [session.memory?.one_sentence, session.answer?.answer_text]
+                  .filter(Boolean)
+                  .join("\n\n"),
+                voiceTranscript: session.memory?.voice_transcript ?? "",
+                story: [session.story?.personal_notes, session.story?.user_voice_story]
+                  .filter(Boolean)
+                  .join("\n\n"),
+              })}
             />
           </motion.div>
         )}
@@ -548,14 +552,7 @@ function PortalScreen({ onBegin }: { onBegin: () => void }) {
         .split(" ")[0];
       setName(n);
 
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: entry } = await (supabase as any)
-        .from("diary_entries")
-        .select("id")
-        .eq("user_id", u.user.id)
-        .eq("date", today)
-        .maybeSingle();
-      if (entry) setExisting({ id: entry.id });
+      if (await hasSessionToday()) setExisting({ id: "today" });
       setChecking(false);
     })();
   }, []);

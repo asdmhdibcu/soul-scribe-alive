@@ -13,7 +13,8 @@ import {
 } from "recharts";
 import { format, parseISO, subDays, startOfDay } from "date-fns";
 import { RefreshCw, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { loadDayMoods, loadDaysWritten, loadMoments } from "@/lib/moments";
+import { buildDayEntries } from "@/lib/writing-stats";
 import { generateInsights } from "@/lib/insights.functions";
 import { GoldParticles } from "@/components/landing/atmos";
 import { BecomingSection } from "@/components/insights/BecomingSection";
@@ -39,9 +40,8 @@ type Entry = {
 };
 
 type UserRow = {
-  streak: number;
-  longest_streak: number;
-  total_sessions: number;
+  /** Days with at least one moment in the last 30. Replaces streaks. */
+  daysWritten: number;
 };
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -59,25 +59,15 @@ function InsightsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
-      const [{ data: ents }, { data: u }] = await Promise.all([
-        (supabase as any)
-          .from("diary_entries")
-          .select(
-            "id,date,title,content,mood_x,mood_y,mood_color,focus_word,one_thing,created_at"
-          )
-          .eq("user_id", auth.user.id)
-          .order("date", { ascending: false })
-          .limit(60),
-        supabase
-          .from("users")
-          .select("streak,longest_streak,total_sessions")
-          .eq("id", auth.user.id)
-          .maybeSingle(),
+      // Decrypted on this device: one entry per day from the person's moments,
+      // with that day's reflection mood when there is one.
+      const [moments, moods, daysWritten] = await Promise.all([
+        loadMoments({ limit: 600 }),
+        loadDayMoods(),
+        loadDaysWritten(30),
       ]);
-      setEntries((ents ?? []) as Entry[]);
-      setUser(u as UserRow | null);
+      setEntries(buildDayEntries(moments, moods).slice(0, 60) as Entry[]);
+      setUser({ daysWritten });
       setLoading(false);
     })();
   }, []);
@@ -114,7 +104,6 @@ function InsightsPage() {
               />
             )}
             <MoodLandscape data={chartData} stats={moodStats} entries={entries} />
-            {isSoulPlus && <WeeklyPrediction entries={entries} />}
             {isSoulPlus && <PatternCards entries={entries} />}
             {entries.length === 0 && (
               <EmptyState />
@@ -129,12 +118,10 @@ function InsightsPage() {
 /* ---------------- Champion ---------------- */
 
 function computeScores(entries: Entry[], user: UserRow | null) {
-  const sessions = user?.total_sessions ?? entries.length;
-  const streak = user?.streak ?? 0;
-  const longest = user?.longest_streak ?? streak;
+  const written = user?.daysWritten ?? 0;
 
-  // Consistency: streak vs 30, plus sessions vs 30
-  const consistency = clamp01((streak / 30) * 0.6 + (Math.min(sessions, 30) / 30) * 0.4);
+  // Consistency: days written out of the last 30 (no streaks)
+  const consistency = clamp01(written / 30);
 
   // Resilience: % of low-mood days followed by improvement
   let lowDays = 0;
@@ -148,7 +135,7 @@ function computeScores(entries: Entry[], user: UserRow | null) {
       if (next > cur + 0.1) bouncedBack++;
     }
   }
-  const resilience = lowDays > 0 ? clamp01(bouncedBack / lowDays) : longest > 5 ? 0.7 : 0.5;
+  const resilience = lowDays > 0 ? clamp01(bouncedBack / lowDays) : written > 5 ? 0.7 : 0.5;
 
   // Self awareness: avg content length / 800
   const lens = entries.map((e) => (e.content ?? "").length);
@@ -394,95 +381,6 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 /* ---------------- Weekly Prediction ---------------- */
-
-function WeeklyPrediction({ entries }: { entries: Entry[] }) {
-  const run = useServerFn(generateInsights);
-  const [data, setData] = useState<{ prediction: string; patterns: { text: string; emoji: string }[] } | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [canRefresh, setCanRefresh] = useState(true);
-
-  const payload = useMemo(
-    () =>
-      entries.slice(0, 7).map((e) => ({
-        date: e.date,
-        title: e.title,
-        content: e.content,
-        mood_label: e.mood_label ?? null,
-        mood_x: e.mood_x,
-        mood_y: e.mood_y,
-        focus_word: e.focus_word,
-        one_thing: e.one_thing,
-      })),
-    [entries]
-  );
-
-  async function load(force = false) {
-    const cached = localStorage.getItem("alive:insights");
-    if (cached && !force) {
-      try {
-        const parsed = JSON.parse(cached);
-        const age = Date.now() - (parsed.ts ?? 0);
-        if (age < 24 * 60 * 60 * 1000) {
-          setData(parsed.data);
-          setCanRefresh(false);
-          return;
-        }
-      } catch {}
-    }
-    setLoading(true);
-    try {
-      const res = await run({ data: { entries: payload } });
-      setData(res);
-      localStorage.setItem("alive:insights", JSON.stringify({ ts: Date.now(), data: res }));
-      setCanRefresh(false);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (entries.length) load(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries.length]);
-
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display text-2xl text-gold">◆ This Week — ALIVE Predicts</h2>
-        <button
-          onClick={() => canRefresh && load(true)}
-          disabled={!canRefresh || loading}
-          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-gold-light disabled:opacity-40 transition-colors"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          {canRefresh ? "Refresh" : "Refreshes tomorrow"}
-        </button>
-      </div>
-      <motion.div
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="relative rounded-2xl p-[1px] bg-gradient-to-br from-[oklch(0.83_0.13_88)] via-[oklch(0.74_0.12_85_/_0.4)] to-transparent"
-      >
-        <div className="rounded-2xl bg-[#0F0F16] p-6 md:p-8">
-          {loading && !data ? (
-            <div className="flex items-center gap-3 text-muted-foreground">
-              <Sparkles size={16} className="text-gold animate-pulse" />
-              Reading your patterns…
-            </div>
-          ) : data ? (
-            <p className="text-lg md:text-xl leading-relaxed text-foreground/90 font-serif">
-              {data.prediction}
-            </p>
-          ) : (
-            <p className="text-muted-foreground">No prediction yet.</p>
-          )}
-        </div>
-      </motion.div>
-      {data?.patterns?.length ? <PatternStrip patterns={data.patterns} /> : null}
-    </section>
-  );
-}
 
 /* ---------------- Pattern Cards ---------------- */
 

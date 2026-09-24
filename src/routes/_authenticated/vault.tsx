@@ -5,14 +5,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   BookOpen,
-  Coins,
-  Flame,
+  CalendarDays,
   ImageIcon,
   Mic,
   Search,
   Sparkles,
   Star,
-  Timer,
   Trash2,
   X,
 } from "lucide-react";
@@ -25,6 +23,7 @@ import { InlineLock } from "@/components/UpgradeGate";
 import {
   deleteMoment,
   filterMoments,
+  loadDaysWritten,
   loadMoments,
   momentsForAi,
   openMedia,
@@ -53,9 +52,7 @@ function VaultPage() {
   const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalPages: 0,
-    streak: 0,
-    timeCredits: 0,
-    coins: 0,
+    daysWritten: 0,
     daysAlive: 0,
   });
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -92,16 +89,17 @@ function VaultPage() {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const [{ data: userRow }, { count }] = await Promise.all([
+      const [{ data: userRow }, { count }, daysWritten] = await Promise.all([
         supabase
           .from("users")
-          .select("streak, coins, time_credits, created_at")
+          .select("created_at")
           .eq("id", u.user.id)
           .maybeSingle(),
         supabase
           .from("moments")
           .select("id", { count: "exact", head: true })
           .eq("user_id", u.user.id),
+        loadDaysWritten(30),
       ]);
       const createdAt = userRow?.created_at ? new Date(userRow.created_at) : new Date();
       const daysAlive = Math.max(
@@ -110,9 +108,7 @@ function VaultPage() {
       );
       setStats({
         totalPages: count ?? 0,
-        streak: userRow?.streak ?? 0,
-        timeCredits: userRow?.time_credits ?? 0,
-        coins: userRow?.coins ?? 0,
+        daysWritten,
         daysAlive,
       });
     })();
@@ -213,25 +209,18 @@ function VaultPage() {
         </header>
 
         {/* Stats */}
-        <div className="mt-7 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-7 grid grid-cols-2 gap-3">
           <StatCard
             icon={<BookOpen className="h-4 w-4" />}
-            label="Total Pages"
+            label="Moments"
             value={stats.totalPages}
           />
           <StatCard
-            icon={<Flame className="h-4 w-4" />}
-            label="Current Streak"
-            value={stats.streak}
-            suffix={stats.streak === 1 ? "day" : "days"}
+            icon={<CalendarDays className="h-4 w-4" />}
+            label="Last 30 days"
+            value={stats.daysWritten}
+            suffix={`of 30 days written`}
           />
-          <StatCard
-            icon={<Timer className="h-4 w-4" />}
-            label="Time Credits"
-            value={stats.timeCredits}
-            suffix="min"
-          />
-          <StatCard icon={<Coins className="h-4 w-4" />} label="Coins Earned" value={stats.coins} />
         </div>
 
         {/* Search */}

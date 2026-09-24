@@ -38,7 +38,6 @@ const DiarySchema = z.object({
   body_signal: z.string().nullable(),
   morning_mission: z.string(),
   tonight_intention: z.string(),
-  coins_earned: z.number(),
 });
 
 export type DiaryResult = z.infer<typeof DiarySchema>;
@@ -65,8 +64,7 @@ Return ONLY the structured JSON with these fields:
 - relationship_nudge: observation about relationships if relevant, otherwise null
 - body_signal: health/body observation if relevant, otherwise null
 - morning_mission: short morning ritual sentence
-- tonight_intention: short sentence for tonight before sleep
-- coins_earned: integer between 10 and 25 reflecting session depth`;
+- tonight_intention: short sentence for tonight before sleep`;
 
 export const generateDiary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -123,7 +121,6 @@ export const generateDiary = createServerFn({ method: "POST" })
         body_signal: null,
         morning_mission: "Two minutes of stillness before reaching for your phone.",
         tonight_intention: "Let today rest. You did enough.",
-        coins_earned: 12,
       };
       return fallback;
     }

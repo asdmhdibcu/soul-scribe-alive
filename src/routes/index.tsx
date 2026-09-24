@@ -260,7 +260,7 @@ function Features() {
     {
       icon: <Gamepad2 className="h-6 w-6" strokeWidth={1.5} />,
       title: "Feels Like a Game",
-      body: "Swipe cards. Build streaks. Earn coins. The healthiest addiction you'll ever have.",
+      body: "Swipe cards, drop a memory, answer one question. No streaks, no guilt: just your own words, kept.",
     },
     {
       icon: <Camera className="h-6 w-6" strokeWidth={1.5} />,
