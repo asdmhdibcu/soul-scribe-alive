@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** in-review (branch claude/03-remove-coins-streaks)
+**Status:** done
 
 - [ ] No reference remains to coins, coins_history, marketplace, achievements, streak or longest_streak
 - [ ] coins.functions.ts is deleted
