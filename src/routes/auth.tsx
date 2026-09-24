@@ -3,13 +3,12 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import { Eye, EyeOff, Copy, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatRecoveryCode, normalizeRecoveryCode, deriveKeys } from "@/lib/crypto";
+import { formatRecoveryCode, deriveKeys } from "@/lib/crypto";
 import {
   provisionKeys,
   signInAndUnlock,
-  fetchUserKeys,
-  unlockWithRecoveryCode,
-  resetPasswordWithMasterKey,
+  recoverWithCode,
+  finishRecovery,
 } from "@/lib/vault-session";
 import {
   AuthShell,
@@ -149,7 +148,7 @@ function SignInForm({ onSwitch, onRecover }: { onSwitch: () => void; onRecover: 
             onClick={onRecover}
             className="text-xs text-gold hover:text-gold-light tracking-wider"
           >
-            Use my recovery code
+            Forgot password? Use your recovery code
           </button>
         </div>
 
@@ -391,7 +390,7 @@ function RecoverForm({ onSwitch }: { onSwitch: () => void }) {
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [masterKey, setMasterKeyLocal] = useState<CryptoKey | null>(null);
+  const [recovery, setRecovery] = useState<{ masterKey: CryptoKey; verifier: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -400,18 +399,8 @@ function RecoverForm({ onSwitch }: { onSwitch: () => void }) {
     setError(null);
     setLoading(true);
     try {
-      // Recovery needs an authenticated session to read user_keys; the user must
-      // still know the account email, and the code proves ownership of the data.
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) {
-        throw new Error(
-          "Open this page while signed in on a device that still has your session, or sign in with your password first.",
-        );
-      }
-      const keys = await fetchUserKeys(u.user.id);
-      if (!keys) throw new Error("No encryption key found for this account.");
-      const mk = await unlockWithRecoveryCode(email, normalizeRecoveryCode(code), keys);
-      setMasterKeyLocal(mk);
+      // No session needed: the code itself proves ownership.
+      setRecovery(await recoverWithCode(email, code));
       setStep("password");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That recovery code did not work.");
@@ -425,16 +414,11 @@ function RecoverForm({ onSwitch }: { onSwitch: () => void }) {
     setError(null);
     if (newPassword.length < 8) return setError("Password must be at least 8 characters.");
     if (newPassword !== confirm) return setError("Passwords do not match.");
-    if (!masterKey) return setError("Recovery session expired. Start again.");
+    if (!recovery) return setError("Recovery session expired. Start again.");
     setLoading(true);
     try {
-      await resetPasswordWithMasterKey(
-        email,
-        newPassword,
-        masterKey,
-        normalizeRecoveryCode(code),
-      );
-      navigate({ to: "/today" });
+      const user = await finishRecovery(email, newPassword, recovery.masterKey, recovery.verifier);
+      navigate({ to: await routeAfterAuth(user.id) });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not set a new password.");
     } finally {

@@ -11,6 +11,7 @@
 export const KDF_ITERATIONS = 600_000;
 const WRAP_INFO = "alive-wrap-v1";
 const RECOVERY_INFO = "alive-recovery-v1";
+const RECOVERY_VERIFIER_INFO = "alive-recovery-verifier-v1";
 
 /* ------------------------------------------------------------------ */
 /* encoding helpers                                                    */
@@ -103,18 +104,66 @@ export async function deriveKeys(email: string, password: string): Promise<Deriv
   return { authPassword: toBase64(authBits), wrappingKey };
 }
 
+function recoverySecret(recoveryCode: string, kdfSalt: string, iterations: number) {
+  return pbkdf2Bits(enc.encode(recoveryCode.trim().toUpperCase()), fromBase64(kdfSalt), iterations);
+}
+
 /** Wrapping key derived from a recovery code (uses the account's stored salt). */
 export async function deriveRecoveryWrappingKey(
   recoveryCode: string,
   kdfSalt: string,
   iterations: number = KDF_ITERATIONS,
 ): Promise<CryptoKey> {
-  const secret = await pbkdf2Bits(
-    enc.encode(recoveryCode.trim().toUpperCase()),
-    fromBase64(kdfSalt),
-    iterations,
+  return hkdfWrappingKey(await recoverySecret(recoveryCode, kdfSalt, iterations), RECOVERY_INFO);
+}
+
+/**
+ * Proof of holding the recovery code, safe to send to the server.
+ * Derived with a different HKDF label from the wrapping key, so knowing the
+ * verifier (or its hash, which the server stores) never unwraps the diary.
+ */
+export async function deriveRecoveryVerifier(
+  recoveryCode: string,
+  kdfSalt: string,
+  iterations: number = KDF_ITERATIONS,
+): Promise<string> {
+  const base = await subtle().importKey(
+    "raw",
+    (await recoverySecret(recoveryCode, kdfSalt, iterations)) as BufferSource,
+    "HKDF",
+    false,
+    ["deriveBits"],
   );
-  return hkdfWrappingKey(secret, RECOVERY_INFO);
+  const bits = await subtle().deriveBits(
+    {
+      name: "HKDF",
+      hash: "SHA-256",
+      salt: new Uint8Array(32) as BufferSource,
+      info: enc.encode(RECOVERY_VERIFIER_INFO) as BufferSource,
+    },
+    base,
+    256,
+  );
+  return toBase64(bits);
+}
+
+/** SHA-256 hex of a verifier. This is what user_keys stores. */
+export async function hashRecoveryVerifier(verifier: string): Promise<string> {
+  const digest = await subtle().digest("SHA-256", enc.encode(verifier) as BufferSource);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Constant-time comparison of a submitted verifier against the stored hash. */
+export async function recoveryVerifierMatches(
+  storedHash: string | null | undefined,
+  verifier: string,
+): Promise<boolean> {
+  if (!storedHash) return false;
+  const actual = await hashRecoveryVerifier(verifier);
+  if (actual.length !== storedHash.length) return false;
+  let diff = 0;
+  for (let i = 0; i < actual.length; i++) diff |= actual.charCodeAt(i) ^ storedHash.charCodeAt(i);
+  return diff === 0;
 }
 
 export function generateSalt(): string {
@@ -308,4 +357,3 @@ export async function decryptJson<T>(payload: string | null | undefined, fallbac
     return fallback;
   }
 }
-

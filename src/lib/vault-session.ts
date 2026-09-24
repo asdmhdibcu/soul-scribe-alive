@@ -10,8 +10,12 @@ import {
   wrapKey,
   generateSalt,
   generateRecoveryCode,
+  deriveRecoveryVerifier,
+  hashRecoveryVerifier,
+  normalizeRecoveryCode,
   KDF_ITERATIONS,
 } from "@/lib/crypto";
+import { getRecoveryParams, beginRecovery, completeRecovery } from "@/lib/recovery.functions";
 
 export type UserKeysRow = {
   wrapped_by_password: string;
@@ -57,47 +61,36 @@ export async function unlockWithPassword(email: string, password: string) {
   setMasterKey(masterKey);
 }
 
-/** Recovery-code unlock. Returns the unwrapped key handling to the caller. */
-export async function unlockWithRecoveryCode(
-  email: string,
-  recoveryCode: string,
-  keys: UserKeysRow,
-) {
-  const recoveryWrappingKey = await deriveRecoveryWrappingKey(
-    recoveryCode,
-    keys.kdf_salt,
-    keys.kdf_iterations,
-  );
-  const masterKey = await unwrapKey(keys.wrapped_by_recovery, recoveryWrappingKey);
-  setMasterKey(masterKey);
-  void email;
-  return masterKey;
+/**
+ * Recovery for someone who has forgotten their password (no session needed).
+ * Step 1: prove the code and unwrap the master key on this device.
+ */
+export async function recoverWithCode(email: string, recoveryCode: string) {
+  const code = normalizeRecoveryCode(recoveryCode);
+  const { kdfSalt, kdfIterations } = await getRecoveryParams({ data: { email } });
+  const verifier = await deriveRecoveryVerifier(code, kdfSalt, kdfIterations);
+  const { wrappedByRecovery } = await beginRecovery({ data: { email, verifier } });
+  const recoveryWrappingKey = await deriveRecoveryWrappingKey(code, kdfSalt, kdfIterations);
+  const masterKey = await unwrapKey(wrappedByRecovery, recoveryWrappingKey);
+  return { masterKey, verifier };
 }
 
-/** After recovery: set a brand new password and re-wrap the master key. */
-export async function resetPasswordWithMasterKey(
+/**
+ * Step 2: choose a new password. The master key is re-wrapped on this device;
+ * the server only receives the derived auth password and the wrapped key.
+ */
+export async function finishRecovery(
   email: string,
   newPassword: string,
   masterKey: CryptoKey,
-  recoveryCode: string,
+  verifier: string,
 ) {
   const { authPassword, wrappingKey } = await deriveKeys(email, newPassword);
-  const { error } = await supabase.auth.updateUser({ password: authPassword });
-  if (error) throw error;
-
-  const kdfSalt = generateSalt();
-  const recoveryWrappingKey = await deriveRecoveryWrappingKey(recoveryCode, kdfSalt, KDF_ITERATIONS);
-  const wrapped_by_password = await wrapKey(masterKey, wrappingKey);
-  const wrapped_by_recovery = await wrapKey(masterKey, recoveryWrappingKey);
-
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) throw new Error("Not signed in.");
-  await supabase.from("user_keys").update({
-    wrapped_by_password,
-    wrapped_by_recovery,
-    kdf_salt: kdfSalt,
-    kdf_iterations: KDF_ITERATIONS,
-  }).eq("user_id", u.user.id);
+  const wrappedByPassword = await wrapKey(masterKey, wrappingKey);
+  await completeRecovery({
+    data: { email, verifier, newAuthPassword: authPassword, wrappedByPassword },
+  });
+  return signInAndUnlock(email, newPassword);
 }
 
 /** Creates the master key material for a brand new account. */
@@ -107,10 +100,17 @@ export async function provisionKeys(email: string, password: string, userId: str
   const masterKey = await generateMasterKey();
   const kdfSalt = generateSalt();
   const recoveryCode = generateRecoveryCode();
-  const recoveryWrappingKey = await deriveRecoveryWrappingKey(recoveryCode, kdfSalt, KDF_ITERATIONS);
+  const recoveryWrappingKey = await deriveRecoveryWrappingKey(
+    recoveryCode,
+    kdfSalt,
+    KDF_ITERATIONS,
+  );
 
   const wrapped_by_password = await wrapKey(masterKey, wrappingKey);
   const wrapped_by_recovery = await wrapKey(masterKey, recoveryWrappingKey);
+  const recovery_verifier_hash = await hashRecoveryVerifier(
+    await deriveRecoveryVerifier(recoveryCode, kdfSalt, KDF_ITERATIONS),
+  );
 
   const { error } = await supabase.from("user_keys").insert({
     user_id: userId,
@@ -118,6 +118,7 @@ export async function provisionKeys(email: string, password: string, userId: str
     wrapped_by_recovery,
     kdf_salt: kdfSalt,
     kdf_iterations: KDF_ITERATIONS,
+    recovery_verifier_hash,
   });
   if (error) throw error;
 

@@ -1,5 +1,8 @@
 import { createFileRoute, Outlet, redirect, Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { clearMasterKey } from "@/lib/crypto";
+import { useVaultUnlocked } from "@/lib/vault-session";
+import { UnlockScreen } from "@/components/auth/UnlockScreen";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -13,10 +16,16 @@ export const Route = createFileRoute("/_authenticated")({
 
 function AuthedLayout() {
   const navigate = useNavigate();
+  const { user } = Route.useRouteContext();
+  const unlocked = useVaultUnlocked();
   async function signOut() {
+    clearMasterKey();
     await supabase.auth.signOut();
     navigate({ to: "/auth" });
   }
+  // Signed in but the key is not in memory (reload, new tab): stay sealed.
+  if (!unlocked) return <UnlockScreen email={user.email ?? ""} />;
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="border-b border-border bg-card/40 backdrop-blur sticky top-0 z-30">

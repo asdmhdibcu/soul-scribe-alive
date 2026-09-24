@@ -428,6 +428,7 @@ export type Database = {
           created_at: string
           kdf_iterations: number
           kdf_salt: string
+          recovery_verifier_hash: string | null
           user_id: string
           wrapped_by_password: string
           wrapped_by_recovery: string
@@ -436,6 +437,7 @@ export type Database = {
           created_at?: string
           kdf_iterations: number
           kdf_salt: string
+          recovery_verifier_hash?: string | null
           user_id: string
           wrapped_by_password: string
           wrapped_by_recovery: string
@@ -444,6 +446,7 @@ export type Database = {
           created_at?: string
           kdf_iterations?: number
           kdf_salt?: string
+          recovery_verifier_hash?: string | null
           user_id?: string
           wrapped_by_password?: string
           wrapped_by_recovery?: string
