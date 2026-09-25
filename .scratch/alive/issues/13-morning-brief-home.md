@@ -4,7 +4,7 @@
 
 **Blocked by:** 10
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Every item has a verbatim quote and a date; items without one are dropped
 - [ ] No item asks whether the person did something

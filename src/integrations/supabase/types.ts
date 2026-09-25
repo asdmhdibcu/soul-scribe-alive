@@ -21,6 +21,7 @@ export type Database = {
           id: string
           items_enc: string
           opened_at: string | null
+          useful: number[]
           user_id: string
         }
         Insert: {
@@ -37,6 +38,7 @@ export type Database = {
           id?: string
           items_enc?: string
           opened_at?: string | null
+          useful?: number[]
           user_id?: string
         }
         Relationships: []

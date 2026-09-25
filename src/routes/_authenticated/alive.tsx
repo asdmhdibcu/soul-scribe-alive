@@ -9,6 +9,7 @@ import {
   type ThreadDetail,
 } from "@/lib/sorter";
 import { useAiAccess } from "@/lib/ai-client";
+import { BriefCard } from "@/components/brief/BriefCard";
 
 export const Route = createFileRoute("/_authenticated/alive")({
   head: () => ({ meta: [{ title: "What's alive — ALIVE" }] }),
@@ -63,6 +64,10 @@ function AlivePage() {
       <p className="mt-2 text-sm text-muted-foreground italic">
         Filed quietly from your own words. Every line is a quote, with the day you said it.
       </p>
+
+      <div className="mt-8">
+        <BriefCard />
+      </div>
 
       {!aiLoading && !hasAi && (
         <p
