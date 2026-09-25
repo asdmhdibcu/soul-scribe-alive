@@ -337,6 +337,7 @@ export type Database = {
           name_enc?: string | null
           path: string
           size_bytes?: number
+          text_enc?: string | null
           user_id: string
         }
         Update: {

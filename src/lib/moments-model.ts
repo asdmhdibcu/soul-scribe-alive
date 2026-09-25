@@ -11,6 +11,7 @@ export type AttachmentRow = {
   kind: string;
   name_enc: string | null;
   mime_enc: string | null;
+  text_enc?: string | null;
   size_bytes: number;
 };
 
@@ -30,6 +31,7 @@ export type MomentRow = {
   body_enc: string | null;
   audio_path: string | null;
   photo_path: string | null;
+  area_enc?: string | null;
   moment_files?: AttachmentRow[] | null;
 };
 
@@ -50,6 +52,10 @@ export type Moment = {
   audioMime: string | null;
   photoPath: string | null;
   attachments: Attachment[];
+  /** Text read from attached files, decrypted ("" when none). */
+  fileText: string;
+  /** Work or life, once the filing pass has tagged it. */
+  area: "work" | "life" | null;
 };
 
 /** `open` returns the plaintext, or null if decryption failed. */
@@ -75,6 +81,16 @@ export async function toMoment(
         size: a.size_bytes,
       })),
   );
+  const fileText = (
+    await Promise.all(
+      (row.moment_files ?? []).map(async (a) =>
+        a.text_enc ? ((await open(a.text_enc)) ?? "") : "",
+      ),
+    )
+  )
+    .filter(Boolean)
+    .join("\n\n");
+  const areaText = row.area_enc ? await open(row.area_enc) : null;
   return {
     id: row.id,
     capturedAt: row.captured_at,
@@ -88,6 +104,8 @@ export async function toMoment(
     audioMime,
     photoPath: row.photo_path,
     attachments,
+    fileText,
+    area: areaText === "work" || areaText === "life" ? areaText : null,
   };
 }
 
@@ -111,13 +129,14 @@ export function filterMoments(list: Moment[], f: MomentFilter): Moment[] {
 /** What leaves the device for AI features: dated raw text only. */
 export function momentsForAi(list: Moment[]) {
   return list
-    .filter((m) => m.text && m.text.trim())
-    .map((m) => ({ date: m.day, title: null, content: m.text as string }));
+    .map((m) => ({ m, content: [m.text ?? "", m.fileText].filter((t) => t.trim()).join("\n\n") }))
+    .filter(({ content }) => content)
+    .map(({ m, content }) => ({ date: m.day, title: null, content }));
 }
 
 /** Keep only quotes that appear word for word in some moment (the citation law). */
 export function quotesInMoments(quotes: string[], list: Moment[]): string[] {
-  const texts = list.map((m) => m.text ?? "");
+  const texts = list.map((m) => `${m.text ?? ""}\n${m.fileText}`);
   return quotes.filter((q) => q.trim() && texts.some((t) => t.includes(q.trim())));
 }
 

@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 09
 
-**Status:** ready-for-agent
+**Status:** done (images are not read yet: no OCR)
 
 - [ ] A PDF mentioning an existing project links to that topic
 - [ ] Quotes from files appear verbatim in the extracted text

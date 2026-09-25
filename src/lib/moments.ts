@@ -12,6 +12,7 @@ import {
 import { daysWrittenInLast, type DayMood } from "@/lib/writing-stats";
 import { combineTextAndTranscript } from "@/lib/voice-model";
 import { enqueue, flush, registerSenders } from "@/lib/outbox";
+import { readFileText } from "@/lib/file-text";
 import {
   FREE_STORAGE_BYTES,
   SOUL_STORAGE_BYTES,
@@ -39,7 +40,7 @@ export async function loadMoments(opts: { sinceDay?: string; limit?: number } = 
   let q = supabase
     .from("moments")
     .select(
-      "id, captured_at, kind, body_enc, audio_path, photo_path, moment_files(id, path, kind, name_enc, mime_enc, size_bytes)",
+      "id, captured_at, kind, body_enc, audio_path, photo_path, area_enc, moment_files(id, path, kind, name_enc, mime_enc, text_enc, size_bytes)",
     )
     .order("captured_at", { ascending: false })
     .limit(opts.limit ?? 1000);
@@ -169,6 +170,8 @@ type SealedCapture = {
     blob: Blob;
     nameEnc: string;
     mimeEnc: string;
+    /** Text read from the file on the device, encrypted ("" when unreadable). */
+    textEnc: string | null;
     size: number;
   }[];
 };
@@ -206,6 +209,7 @@ async function sealCapture(c: CaptureInput): Promise<SealedCapture> {
     parts.map(async (p) => {
       const id = crypto.randomUUID();
       const sealed = await encryptBlob(p.blob, key);
+      const text = p.kind === "file" ? await readFileText(p.blob as File) : "";
       return {
         id,
         path: storagePath(userId, c.id, id),
@@ -213,6 +217,7 @@ async function sealCapture(c: CaptureInput): Promise<SealedCapture> {
         blob: sealed,
         nameEnc: await encryptField(p.name),
         mimeEnc: await encryptField(p.blob.type || "application/octet-stream"),
+        textEnc: text ? await encryptField(text) : null,
         size: sealed.size,
       };
     }),
@@ -268,6 +273,7 @@ async function sendCapture(s: SealedCapture) {
         kind: f.kind,
         name_enc: f.nameEnc,
         mime_enc: f.mimeEnc,
+        text_enc: f.textEnc,
         size_bytes: f.size,
       })),
       { onConflict: "id", ignoreDuplicates: true },
