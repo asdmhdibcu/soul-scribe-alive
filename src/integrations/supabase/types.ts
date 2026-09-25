@@ -325,6 +325,7 @@ export type Database = {
           name_enc: string | null
           path: string
           size_bytes: number
+          text_enc: string | null
           user_id: string
         }
         Insert: {
@@ -347,6 +348,7 @@ export type Database = {
           name_enc?: string | null
           path?: string
           size_bytes?: number
+          text_enc?: string | null
           user_id?: string
         }
         Relationships: [
@@ -361,6 +363,7 @@ export type Database = {
       }
       moments: {
         Row: {
+          area_enc: string | null
           audio_path: string | null
           body_enc: string | null
           captured_at: string
@@ -368,9 +371,11 @@ export type Database = {
           id: string
           kind: string
           photo_path: string | null
+          sorted_at: string | null
           user_id: string
         }
         Insert: {
+          area_enc?: string | null
           audio_path?: string | null
           body_enc?: string | null
           captured_at: string
@@ -378,9 +383,11 @@ export type Database = {
           id?: string
           kind: string
           photo_path?: string | null
+          sorted_at?: string | null
           user_id: string
         }
         Update: {
+          area_enc?: string | null
           audio_path?: string | null
           body_enc?: string | null
           captured_at?: string
@@ -388,6 +395,7 @@ export type Database = {
           id?: string
           kind?: string
           photo_path?: string | null
+          sorted_at?: string | null
           user_id?: string
         }
         Relationships: []
@@ -437,6 +445,7 @@ export type Database = {
       threads: {
         Row: {
           first_seen: string
+          hidden: boolean
           id: string
           kind_enc: string | null
           last_seen: string
@@ -447,6 +456,7 @@ export type Database = {
         }
         Insert: {
           first_seen: string
+          hidden?: boolean
           id?: string
           kind_enc?: string | null
           last_seen: string
@@ -457,6 +467,7 @@ export type Database = {
         }
         Update: {
           first_seen?: string
+          hidden?: boolean
           id?: string
           kind_enc?: string | null
           last_seen?: string

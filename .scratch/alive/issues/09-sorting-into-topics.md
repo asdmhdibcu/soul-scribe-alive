@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 08
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Two moments about the same situation in different words produce one topic with mention count 2
 - [ ] Every stored quote appears verbatim in its source moment

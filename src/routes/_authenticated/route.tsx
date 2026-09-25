@@ -4,6 +4,7 @@ import { clearMasterKey } from "@/lib/crypto";
 import { useVaultUnlocked } from "@/lib/vault-session";
 import { UnlockScreen } from "@/components/auth/UnlockScreen";
 import { CaptureButton } from "@/components/capture/CaptureSheet";
+import { BackgroundSorter } from "@/components/BackgroundSorter";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -53,6 +54,7 @@ function AuthedLayout() {
         <Outlet />
       </main>
       <CaptureButton />
+      <BackgroundSorter />
     </div>
   );
 }
