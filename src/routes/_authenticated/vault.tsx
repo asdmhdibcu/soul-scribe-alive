@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { loadOwnAi, useAiAccess } from "@/lib/ai-client";
-import { aiErrorMessage } from "@/lib/ai-model";
+import { useAiAccess } from "@/lib/ai-client";
+import { AskPanel } from "@/components/ask/AskPanel";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import {
   BookOpen,
@@ -20,7 +19,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
-import { askMemory } from "@/lib/memory-search.functions";
 import { usePlan, FREE_LIMITS } from "@/lib/plan";
 import { InlineLock } from "@/components/UpgradeGate";
 import { formatBytes } from "@/lib/capture-model";
@@ -31,12 +29,14 @@ import {
   loadDaysWritten,
   loadMoments,
   MOMENT_SAVED_EVENT,
-  momentsForAi,
   openMedia,
   type Moment,
 } from "@/lib/moments";
 
 export const Route = createFileRoute("/_authenticated/vault")({
+  // ?day=YYYY-MM-DD shows one day (Ask links cited dates here).
+  validateSearch: (s: Record<string, unknown>): { day?: string } =>
+    typeof s.day === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s.day) ? { day: s.day } : {},
   head: () => ({ meta: [{ title: "The Vault — ALIVE" }] }),
   errorComponent: ({ error }) => (
     <div className="p-10 text-center text-muted-foreground">
@@ -71,10 +71,7 @@ function VaultPage() {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const [memOpen, setMemOpen] = useState(false);
-  const [memQuestion, setMemQuestion] = useState("");
-  const [memAnswer, setMemAnswer] = useState<string | null>(null);
-  const [memLoading, setMemLoading] = useState(false);
-  const ask = useServerFn(askMemory);
+  const { day: dayFilter } = Route.useSearch();
   const { plan } = usePlan();
   const unlimitedVault = plan === "soul" || plan === "family" || plan === "legacy";
   // Ask works on a paid plan or with the person's own AI key.
@@ -98,11 +95,7 @@ function VaultPage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       const [{ data: userRow }, { count }, daysWritten] = await Promise.all([
-        supabase
-          .from("users")
-          .select("created_at")
-          .eq("id", u.user.id)
-          .maybeSingle(),
+        supabase.from("users").select("created_at").eq("id", u.user.id).maybeSingle(),
         supabase
           .from("moments")
           .select("id", { count: "exact", head: true })
@@ -151,7 +144,7 @@ function VaultPage() {
   useEffect(() => setShown(PAGE_SIZE), [filter, debouncedSearch]);
 
   const visible = useMemo(() => {
-    const base = filterMoments(entries, {
+    const base = filterMoments(dayFilter ? entries.filter((e) => e.day === dayFilter) : entries, {
       search: debouncedSearch,
       kind: filter === "text" || filter === "voice" || filter === "photo" ? filter : undefined,
       since:
@@ -166,28 +159,7 @@ function VaultPage() {
     } catch {
       return [];
     }
-  }, [entries, filter, debouncedSearch]);
-
-  async function handleAsk() {
-    if (!memQuestion.trim()) return;
-    setMemLoading(true);
-    setMemAnswer(null);
-    try {
-      const res = await ask({
-        data: {
-          ai: await loadOwnAi(),
-          question: memQuestion.trim(),
-          entries: momentsForAi(entries).slice(0, 120),
-        },
-      });
-      setMemAnswer(res.answer);
-    } catch (e) {
-      console.error(e);
-      toast.error(aiErrorMessage(e));
-    } finally {
-      setMemLoading(false);
-    }
-  }
+  }, [entries, filter, debouncedSearch, dayFilter]);
 
   async function deleteEntry(id: string) {
     const target = entries.find((e) => e.id === id);
@@ -262,6 +234,27 @@ function VaultPage() {
           />
         </div>
 
+        {dayFilter && (
+          <div className="mt-5 flex items-center gap-3 text-sm text-gold-light">
+            <span>
+              Showing{" "}
+              {new Date(`${dayFilter}T12:00:00Z`).toLocaleDateString(undefined, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/vault", search: {} })}
+              className="text-xs uppercase tracking-[0.25em] text-muted-foreground hover:text-gold-light"
+            >
+              Show all
+            </button>
+          </div>
+        )}
+
         {/* Filters */}
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           <FilterTab active={filter === "all"} onClick={() => setFilter("all")} label="All" />
@@ -315,59 +308,11 @@ function VaultPage() {
               )}
             </span>
           </button>
-          <AnimatePresence initial={false}>
-            {memOpen && canMemorySearch && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="overflow-hidden"
-              >
-                <div className="px-4 pb-4 space-y-3">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={memQuestion}
-                      onChange={(e) => setMemQuestion(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && handleAsk()}
-                      placeholder="When did I last feel proud?"
-                      className="flex-1 h-11 px-4 rounded-xl bg-background/70 outline-none text-sm"
-                      style={{ border: "1px solid rgba(240,201,106,0.25)" }}
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAsk}
-                      disabled={memLoading || !memQuestion.trim()}
-                      className="px-5 rounded-xl text-xs uppercase tracking-[0.2em] text-gold-light disabled:opacity-50"
-                      style={{
-                        border: "1px solid rgba(240,201,106,0.55)",
-                        background:
-                          "linear-gradient(160deg, rgba(240,201,106,0.18), rgba(22,22,31,0.6))",
-                      }}
-                    >
-                      {memLoading ? "…" : "Ask"}
-                    </button>
-                  </div>
-                  {memLoading && (
-                    <div className="text-xs text-muted-foreground italic">
-                      Walking through your pages…
-                    </div>
-                  )}
-                  {memAnswer && (
-                    <motion.p
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-sm text-foreground/90 leading-relaxed"
-                      style={{ fontFamily: "Georgia, serif" }}
-                    >
-                      {memAnswer}
-                    </motion.p>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {memOpen && canMemorySearch && (
+            <div className="px-4 pb-4">
+              <AskPanel />
+            </div>
+          )}
         </div>
 
         {/* Entries */}
@@ -467,7 +412,6 @@ function VaultPage() {
           </motion.div>
         )}
       </AnimatePresence>
-
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { loadStorageUsed, saveCapture, saveTranscript, storageLimitFor } from "@
 import { transcribeAudio } from "@/lib/voice/transcribe";
 import { flush, outboxCount, OUTBOX_CHANGED_EVENT } from "@/lib/outbox";
 import { VoiceButton } from "@/components/voice/VoiceButton";
+import { AskPanel } from "@/components/ask/AskPanel";
 import { formatBytes, MAX_PHOTOS, splitAttachments, storageCheck } from "@/lib/capture-model";
 import { usePlan } from "@/lib/plan";
 
@@ -126,6 +127,7 @@ function CaptureSheet({
   onClose: () => void;
 }) {
   const textRef = useRef<HTMLTextAreaElement>(null);
+  const [tab, setTab] = useState<"capture" | "ask">("capture");
   const photoInput = useRef<HTMLInputElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const { plan } = usePlan();
@@ -182,13 +184,24 @@ function CaptureSheet({
         style={{ background: "#16161F", border: "1px solid rgba(240,201,106,0.25)" }}
       >
         <div className="flex items-center justify-between">
-          <p className="text-[10px] uppercase tracking-[0.4em] text-gold-light/80">
-            {new Date().toLocaleString(undefined, {
-              weekday: "short",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
-          </p>
+          <div className="flex items-center gap-1" role="tablist">
+            {(["capture", "ask"] as const).map((t) => (
+              <button
+                key={t}
+                type="button"
+                role="tab"
+                aria-selected={tab === t}
+                onClick={() => setTab(t)}
+                className="px-3 h-8 rounded-full text-[11px] uppercase tracking-[0.3em]"
+                style={{
+                  color: tab === t ? "#0A0A0F" : "rgba(240,201,106,0.8)",
+                  background: tab === t ? "#F0C96A" : "transparent",
+                }}
+              >
+                {t === "capture" ? "Capture" : "Ask"}
+              </button>
+            ))}
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -199,112 +212,120 @@ function CaptureSheet({
           </button>
         </div>
 
-        <textarea
-          ref={textRef}
-          value={draft.text}
-          onChange={(e) => onChange({ ...draft, text: e.target.value })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) onSave(draft);
-          }}
-          placeholder="What's on your mind?"
-          rows={5}
-          className="mt-3 w-full resize-none rounded-[14px] bg-[#0A0A0F] p-4 text-[17px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
-          style={{ fontFamily: "Georgia, serif", border: "1px solid rgba(240,201,106,0.18)" }}
-        />
+        {tab === "ask" ? (
+          <div className="mt-4">
+            <AskPanel onNavigate={onClose} />
+          </div>
+        ) : (
+          <>
+            <textarea
+              ref={textRef}
+              value={draft.text}
+              onChange={(e) => onChange({ ...draft, text: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) onSave(draft);
+              }}
+              placeholder="What's on your mind?"
+              rows={5}
+              className="mt-3 w-full resize-none rounded-[14px] bg-[#0A0A0F] p-4 text-[17px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
+              style={{ fontFamily: "Georgia, serif", border: "1px solid rgba(240,201,106,0.18)" }}
+            />
 
-        {(draft.photos.length > 0 || draft.files.length > 0) && (
-          <ul className="mt-3 flex flex-wrap gap-2">
-            {[...draft.photos, ...draft.files].map((f, i) => (
-              <li
-                key={`${f.name}-${i}`}
-                className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-foreground/85"
-                style={{ border: "1px solid rgba(240,201,106,0.25)", background: "#0A0A0F" }}
+            {(draft.photos.length > 0 || draft.files.length > 0) && (
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {[...draft.photos, ...draft.files].map((f, i) => (
+                  <li
+                    key={`${f.name}-${i}`}
+                    className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-foreground/85"
+                    style={{ border: "1px solid rgba(240,201,106,0.25)", background: "#0A0A0F" }}
+                  >
+                    <span className="max-w-[160px] truncate">{f.name}</span>
+                    <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => remove(f)}
+                      aria-label={`Remove ${f.name}`}
+                      className="text-muted-foreground hover:text-gold-light"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                ref={photoInput}
+                type="file"
+                accept="image/*"
+                multiple
+                hidden
+                onChange={(e) => {
+                  add(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <input
+                ref={fileInput}
+                type="file"
+                multiple
+                hidden
+                onChange={(e) => {
+                  add(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+              <IconButton
+                label="Add photos"
+                onClick={() => photoInput.current?.click()}
+                disabled={draft.photos.length >= MAX_PHOTOS}
               >
-                <span className="max-w-[160px] truncate">{f.name}</span>
-                <span className="text-muted-foreground">{formatBytes(f.size)}</span>
-                <button
-                  type="button"
-                  onClick={() => remove(f)}
-                  aria-label={`Remove ${f.name}`}
-                  className="text-muted-foreground hover:text-gold-light"
+                <ImagePlus className="h-5 w-5" />
+              </IconButton>
+              <IconButton label="Add files" onClick={() => fileInput.current?.click()}>
+                <Paperclip className="h-5 w-5" />
+              </IconButton>
+              {draft.audio ? (
+                <span
+                  className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-gold-light"
+                  style={{ border: "1px solid rgba(240,201,106,0.35)", background: "#0A0A0F" }}
                 >
-                  <X className="h-3 w-3" />
-                </button>
-              </li>
-            ))}
-          </ul>
+                  Voice note · {formatBytes(draft.audio.size)}
+                  <button
+                    type="button"
+                    onClick={() => onChange({ ...draft, audio: null })}
+                    aria-label="Remove voice note"
+                    className="text-muted-foreground hover:text-gold-light"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ) : (
+                <VoiceButton compact onRecorded={(audio) => onChange({ ...draft, audio })} />
+              )}
+              {used !== null && (
+                <p
+                  className={`ml-auto text-[11px] ${check?.ok === false ? "text-red-300" : "text-muted-foreground"}`}
+                >
+                  {check?.ok === false
+                    ? `Not enough space: ${formatBytes(check.remainingBytes)} left of ${formatBytes(limit)}`
+                    : `${formatBytes(used + addBytes)} of ${formatBytes(limit)} used`}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onSave(draft)}
+              disabled={!canSave}
+              className="mt-4 h-12 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] font-medium text-background disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
+            >
+              Save
+            </button>
+          </>
         )}
-
-        <div className="mt-3 flex items-center gap-2">
-          <input
-            ref={photoInput}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              add(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <input
-            ref={fileInput}
-            type="file"
-            multiple
-            hidden
-            onChange={(e) => {
-              add(e.target.files);
-              e.target.value = "";
-            }}
-          />
-          <IconButton
-            label="Add photos"
-            onClick={() => photoInput.current?.click()}
-            disabled={draft.photos.length >= MAX_PHOTOS}
-          >
-            <ImagePlus className="h-5 w-5" />
-          </IconButton>
-          <IconButton label="Add files" onClick={() => fileInput.current?.click()}>
-            <Paperclip className="h-5 w-5" />
-          </IconButton>
-          {draft.audio ? (
-            <span
-              className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-gold-light"
-              style={{ border: "1px solid rgba(240,201,106,0.35)", background: "#0A0A0F" }}
-            >
-              Voice note · {formatBytes(draft.audio.size)}
-              <button
-                type="button"
-                onClick={() => onChange({ ...draft, audio: null })}
-                aria-label="Remove voice note"
-                className="text-muted-foreground hover:text-gold-light"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ) : (
-            <VoiceButton compact onRecorded={(audio) => onChange({ ...draft, audio })} />
-          )}
-          {used !== null && (
-            <p
-              className={`ml-auto text-[11px] ${check?.ok === false ? "text-red-300" : "text-muted-foreground"}`}
-            >
-              {check?.ok === false
-                ? `Not enough space: ${formatBytes(check.remainingBytes)} left of ${formatBytes(limit)}`
-                : `${formatBytes(used + addBytes)} of ${formatBytes(limit)} used`}
-            </p>
-          )}
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onSave(draft)}
-          disabled={!canSave}
-          className="mt-4 h-12 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] font-medium text-background disabled:opacity-40"
-          style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
-        >
-          Save
-        </button>
       </div>
     </div>
   );

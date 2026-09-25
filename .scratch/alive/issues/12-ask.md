@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 08
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Answers cite dates and quote short phrases from raw moments, never AI-generated text
 - [ ] No match returns "I don't see that in your pages yet"
