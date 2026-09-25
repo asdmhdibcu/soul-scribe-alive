@@ -1,194 +1,86 @@
-# Alive: Your Digital Legacy
-
-Create a full stack app called ALIVE 
-
-using React, Supabase, and Tailwind.
-
-First create all Supabase tables:
-
-users:
-
-- id, name, email, avatar_url
-
-- timezone, reminder_time
-
-- streak, longest_streak
-
-- total_sessions, time_credits
-
-- level, coins, plan
-
-- created_at
-
-diary_entries:
-
-- id, user_id, date, title, content
-
-- mood_color, mood_x, mood_y
-
-- energy_level, life_area
-
-- ai_tone, session_intent
-
-- cards_swiped (jsonb)
-
-- photos (jsonb array of urls)
-
-- voice_transcript
-
-- one_answer
-
-- ai_insight, ai_pattern
-
-- tomorrow_plan (jsonb)
-
-- focus_word, one_thing
-
-- coins_earned
-
-- is_private, price
-
-- created_at
-
-photos:
-
-- id, entry_id, user_id
-
-- url, ai_description
-
-- people_detected, location_context
-
-- emotion_context, created_at
-
-family_members:
-
-- id, parent_id, child_id
-
-- role, voice_style, warmth_level
-
-- topics (jsonb), availability
-
-- created_at
-
-child_profiles:
-
-- id, parent_id, name, age
-
-- avatar, age_group
-
-- mood_sharing_enabled
-
-- private_mode
-
-- created_at
-
-child_entries:
-
-- id, child_id, date, title
-
-- content, mood_stars
-
-- mood_emoji, cards_swiped (jsonb)
-
-- photos (jsonb), voice_transcript
-
-- mission, coins_earned
-
-- created_at
-
-legacy_letters:
-
-- id, author_id, child_id
-
-- title, content, open_at_age
-
-- open_at_date, is_opened
-
-- created_at
-
-family_capsules:
-
-- id, family_id, year
-
-- entries (jsonb), created_at
-
-marketplace:
-
-- id, entry_id, seller_id
-
-- price, is_available
-
-- sales_count, created_at
-
-transactions:
-
-- id, buyer_id, seller_id
-
-- entry_id, amount
-
-- platform_fee, created_at
-
-coins_history:
-
-- id, user_id, amount
-
-- reason, created_at
-
-achievements:
-
-- id, user_id, badge_name
-
-- badge_icon, earned_at
-
-Enable Supabase storage bucket 
-
-called "alive-media" for photos 
-
-and voice recordings.
-
-Enable Row Level Security on all tables.
-
-Users can only access their own data.
-
-Global design system:
-
-- Background: #0A0A0F
-
-- Card: #16161F  
-
-- Border: rgba(201,168,76,0.15)
-
-- Gold: #C9A84C
-
-- Gold Light: #F0C96A
-
-- Font Display: Playfair Display
-
-- Font Body: Georgia, serif
-
-- Border radius: 14px
-
-- Dark premium feel throughout
-
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://soul-scribe-alive.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/e0d16f57-ccea-403c-a921-9edea1db57b7).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+# Alive
+
+A private AI diary you never have to organise. Drop in anything, at any time, in any language: text, voice notes, photos, work files. Alive encrypts it on your device, keeps it in one stream, and hands it back with your own words and dates.
+
+Live: https://soul-scribe-alive.lovable.app
+
+## Rules the product follows
+
+1. **Quote or stay silent.** AI output only includes things it can quote word for word from your entries, with the date. Quotes are checked on the device; any that don't match are dropped.
+2. **No guilt.** No streaks, coins, due dates, checkboxes, warnings or "did you…?" questions. Progress is shown as "written X of the last 30 days".
+3. **Your words are the record.** Entries are never edited by the AI. Anything the AI writes is a separate, regenerable view.
+4. **No health guesses.** No medical inference, and no mood from voice tone.
+
+## What works today
+
+| Area | Status |
+| --- | --- |
+| End-to-end encryption, sign-up with recovery code, sign-in, unlock after reload | Done |
+| Password reset with the recovery code (no session needed) | Done |
+| Vault and Timeline reading encrypted entries; search and filters on the device | Done |
+| Capture button on every page: text, up to 3 photos, any files, voice notes | Done |
+| Voice notes transcribed on the device (Whisper in the browser, any language) | Done, not yet tested on a real iPhone |
+| Offline capture: queued on the device, syncs when back online | Done |
+| Bring your own AI key (OpenAI, Anthropic, Google) or use Alive's AI on a paid plan | Done |
+| Six-step reflection session, Insights, "Who you are becoming" | Working on the new data |
+| Sorting into topics, intentions, morning brief, Coach, import | Planned: see `.scratch/alive/` |
+
+## Privacy model
+
+- A master key is created on your device at sign-up (or at the first sign-in after you confirm your email). It is wrapped twice: by a key derived from your password, and by a key derived from a 24-character recovery code. The server stores only the wrapped keys.
+- Your typed password never leaves the device. Supabase Auth receives a separate password derived from it.
+- Text, photos, files, audio, file names and your own AI key are encrypted with AES-GCM before upload. The database and storage hold ciphertext only.
+- Recovery: the device derives a verifier from the recovery code (a different derivation from the key that unlocks the diary). The server checks its hash, then stores the master key re-wrapped with the new password.
+- If you lose both your password and your recovery code, nobody can recover your entries.
+- AI features send only the dated text a request needs, over HTTPS, for that one request. Voice is transcribed on the device and never sent anywhere.
+
+## Stack
+
+- React 19, TanStack Start and Router, Tailwind CSS, shadcn/ui, built with Vite; started on Lovable.
+- Supabase (Lovable Cloud): Postgres with row-level security, Auth, Storage (`alive-media`, private).
+- Web Crypto API for all encryption; no third-party crypto libraries.
+- AI via the Vercel AI SDK: the person's own key through the provider's OpenAI-compatible endpoint, or the Lovable AI gateway on paid plans.
+- Speech-to-text: transformers.js running `onnx-community/whisper-base` in a Web Worker.
+
+## Project layout
+
+```
+src/
+  lib/
+    crypto.ts               key derivation, wrapping, encryption, recovery verifier
+    vault-session.ts        sign-up, sign-in, unlock, recovery flows
+    recovery.functions.ts   server steps for recovery without a session
+    moments.ts              load, save and delete entries; capture upload
+    moments-model.ts        pure entry logic (decrypt mapping, filters, quote checks)
+    capture-model.ts        pure capture rules (photos, files, storage limits)
+    outbox.ts / outbox-model.ts   on-device queue for offline capture
+    voice/                  recorder, on-device transcription worker
+    ai-model.ts             pure AI routing rules
+    ai-router.server.ts     picks the model for each AI request
+    ai-client.ts            the person's own key (encrypted), AI access checks
+    *.functions.ts          server functions (diary, Ask, Timeline, Insights…)
+  routes/                   pages; signed-in pages live under _authenticated/
+  components/               UI, capture sheet, session screens
+supabase/migrations/        database schema, in order
+tests/                      unit tests (node:test)
+.scratch/alive/             tickets: one file per ticket, with status and blockers
+```
+
+## Running it locally
 
 ```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+npm install        # or: bun install
 npm run dev
+npm test           # unit tests, no extra dependencies
+npm run build
 ```
+
+`.env` holds the Supabase URL and publishable key (safe to expose in a web app). Server functions also need `SUPABASE_SERVICE_ROLE_KEY` and, for the paid-plan AI, `LOVABLE_API_KEY`; Lovable Cloud provides both.
+
+## Database changes
+
+Migrations live in `supabase/migrations/` and are named by timestamp. After merging a migration, make sure it has been applied to the Lovable Cloud database before publishing.
+
+## How work is organised
+
+The spec is broken into tickets in `.scratch/alive/issues/`, each with what to build, what blocks it, acceptance criteria and a status. `.scratch/alive/README.md` lists them in order. Changes are made on a branch per ticket and merged into `main`, which Lovable syncs from.
