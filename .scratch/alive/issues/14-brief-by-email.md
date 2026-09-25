@@ -4,7 +4,7 @@
 
 **Blocked by:** 13
 
-**Status:** ready-for-agent
+**Status:** built; needs RESEND_API_KEY, BRIEF_FROM_EMAIL, CRON_SECRET and an hourly caller (see README)
 
 - [ ] The email arrives within the chosen hour in the person's time zone
 - [ ] Switching email off stops it

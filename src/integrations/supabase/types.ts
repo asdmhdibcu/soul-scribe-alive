@@ -518,6 +518,7 @@ export type Database = {
           ai_provider: string | null
           brief_email: boolean
           brief_hour: number
+          last_brief_email_on: string | null
           mood_enabled: boolean
           timezone: string
           user_id: string
@@ -528,6 +529,7 @@ export type Database = {
           ai_provider?: string | null
           brief_email?: boolean
           brief_hour?: number
+          last_brief_email_on?: string | null
           mood_enabled?: boolean
           timezone?: string
           user_id: string
@@ -538,6 +540,7 @@ export type Database = {
           ai_provider?: string | null
           brief_email?: boolean
           brief_hour?: number
+          last_brief_email_on?: string | null
           mood_enabled?: boolean
           timezone?: string
           user_id?: string

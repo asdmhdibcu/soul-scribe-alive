@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { KeyRound, ShieldCheck } from "lucide-react";
 import { AI_PROVIDERS, redactKey, type AiProvider } from "@/lib/ai-model";
 import { loadOwnAi, removeOwnAi, saveOwnAi, useAiAccess } from "@/lib/ai-client";
+import { BriefSettings } from "@/components/settings/BriefSettings";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings — ALIVE" }] }),
@@ -154,6 +155,8 @@ function SettingsPage() {
           </p>
         </div>
       </section>
+
+      <BriefSettings />
 
       <p className="mt-6 text-sm text-muted-foreground">
         <Link

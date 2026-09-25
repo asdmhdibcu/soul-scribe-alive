@@ -23,7 +23,12 @@ Live: https://soul-scribe-alive.lovable.app
 | Offline capture: queued on the device, syncs when back online | Done |
 | Bring your own AI key (OpenAI, Anthropic, Google) or use Alive's AI on a paid plan | Done |
 | Six-step reflection session, Insights, "Who you are becoming" | Working on the new data |
-| Sorting into topics, intentions, morning brief, Coach, import | Planned: see `.scratch/alive/` |
+| Sorting into topics and intentions (What's alive page) | Done |
+| Reading text from attached PDFs, Word files and text files | Done (images are not read) |
+| Ask from the capture sheet, with dates linking to that day | Done |
+| Morning brief on the home screen | Done |
+| Brief reminder email | Built; needs email set up (below) |
+| Coach, import, plans | Planned: see `.scratch/alive/` |
 
 ## Privacy model
 
@@ -80,6 +85,13 @@ npm run build
 ## Database changes
 
 Migrations live in `supabase/migrations/` and are named by timestamp. After merging a migration, make sure it has been applied to the Lovable Cloud database before publishing.
+
+## Turning on the brief reminder email
+
+The brief itself is built on the person's device, so the server can't read it. The email is only a reminder with a link. To switch it on:
+
+1. Add these secrets to the Lovable project: `RESEND_API_KEY` (from resend.com), `BRIEF_FROM_EMAIL` (for example `Alive <brief@yourdomain.com>`, on a domain verified in Resend) and `CRON_SECRET` (any long random string).
+2. Call `POST /api/brief-reminders` once an hour with the header `Authorization: Bearer <CRON_SECRET>`, from any scheduler (a Supabase cron job, or a service such as cron-job.org). Each person gets at most one email per day, at their chosen hour in their own time zone.
 
 ## How work is organised
 
