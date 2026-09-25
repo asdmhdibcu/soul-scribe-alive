@@ -33,7 +33,12 @@ export async function fetchUserKeys(userId: string): Promise<UserKeysRow | null>
   return (data as UserKeysRow | null) ?? null;
 }
 
-/** Signs in with the derived auth password and unlocks the vault. */
+/**
+ * Signs in with the derived auth password and unlocks the vault.
+ * If the account has no key yet (it was created while email confirmation
+ * was pending, so sign-up could not store one), the key is created now and
+ * the new recovery code is returned so the person can save it.
+ */
 export async function signInAndUnlock(email: string, password: string) {
   const { authPassword, wrappingKey } = await deriveKeys(email, password);
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -44,10 +49,13 @@ export async function signInAndUnlock(email: string, password: string) {
   const user = data.user;
   if (!user) throw new Error("Could not sign in.");
   const keys = await fetchUserKeys(user.id);
-  if (!keys) throw new Error("No encryption key found for this account.");
+  if (!keys) {
+    const { recoveryCode } = await provisionKeys(email, password, user.id);
+    return { user, recoveryCode };
+  }
   const masterKey = await unwrapKey(keys.wrapped_by_password, wrappingKey);
   setMasterKey(masterKey);
-  return user;
+  return { user, recoveryCode: null as string | null };
 }
 
 /** Unlock an already-authenticated session (page refresh). */
@@ -90,7 +98,8 @@ export async function finishRecovery(
   await completeRecovery({
     data: { email, verifier, newAuthPassword: authPassword, wrappedByPassword },
   });
-  return signInAndUnlock(email, newPassword);
+  const { user } = await signInAndUnlock(email, newPassword);
+  return user;
 }
 
 /** Creates the master key material for a brand new account. */

@@ -43,6 +43,17 @@ export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
+const PUBLISHED_ORIGIN = "https://soul-scribe-alive.lovable.app";
+
+/**
+ * Where confirmation links should land. Lovable preview URLs sit behind a
+ * Lovable login, so links from a preview sign-up go to the published app.
+ */
+function publicOrigin() {
+  const origin = window.location.origin;
+  return /id-preview--|lovableproject\.com/.test(origin) ? PUBLISHED_ORIGIN : origin;
+}
+
 const EMAIL_TAKEN =
   "An account with this email already exists. Sign in instead, or use your recovery code.";
 
@@ -84,20 +95,34 @@ function SignInForm({ onSwitch, onRecover }: { onSwitch: () => void; onRecover: 
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [firstKey, setFirstKey] = useState<{ code: string; userId: string } | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setLoading(true);
     try {
-      const user = await signInAndUnlock(email, password);
-      const to = await routeAfterAuth(user.id);
-      navigate({ to });
+      const { user, recoveryCode } = await signInAndUnlock(email, password);
+      if (recoveryCode) {
+        // First sign-in after confirming email: the diary key was just created.
+        setFirstKey({ code: recoveryCode, userId: user.id });
+        return;
+      }
+      navigate({ to: await routeAfterAuth(user.id) });
     } catch (e) {
       setError(e instanceof Error ? friendlyAuthError(e.message) : "Could not sign in.");
     } finally {
       setLoading(false);
     }
+  }
+
+  if (firstKey) {
+    return (
+      <RecoveryCodeStep
+        code={firstKey.code}
+        onDone={async () => navigate({ to: await routeAfterAuth(firstKey.userId) })}
+      />
+    );
   }
 
   return (
@@ -183,6 +208,7 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [checkEmail, setCheckEmail] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -204,7 +230,7 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
         email: email.trim(),
         password: authPassword,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `${publicOrigin()}/auth?mode=signin`,
           data: { name: name.trim() },
         },
       });
@@ -212,15 +238,13 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
       // Supabase hides existing emails: it returns a user with no identities.
       if (data.user && data.user.identities?.length === 0) throw new Error(EMAIL_TAKEN);
 
-      let userId = data.user?.id ?? null;
+      // Email confirmation is on: there is no session yet, so the diary key
+      // is created at the first sign-in after confirming (see signInAndUnlock).
       if (!data.session) {
-        const { data: signedIn, error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim(),
-          password: authPassword,
-        });
-        if (signInErr) throw new Error(friendlyAuthError(signInErr.message, EMAIL_TAKEN));
-        userId = signedIn.user?.id ?? userId;
+        setCheckEmail(true);
+        return;
       }
+      const userId = data.user?.id ?? null;
       if (!userId) throw new Error("Could not create account.");
 
       const { recoveryCode: code } = await provisionKeys(email, password, userId);
@@ -230,6 +254,29 @@ function SignUpForm({ onSwitch }: { onSwitch: () => void }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (checkEmail) {
+    return (
+      <AuthShell
+        title="Check your email"
+        subtitle={`We sent a confirmation link to ${email.trim()}.`}
+        footer={
+          <button
+            type="button"
+            onClick={onSwitch}
+            className="text-gold hover:text-gold-light underline-offset-4 hover:underline transition-colors"
+          >
+            I've confirmed, sign me in
+          </button>
+        }
+      >
+        <p className="text-sm text-foreground/80 leading-relaxed">
+          Confirm your email, then sign in with the same password. Your diary's encryption key is
+          created on that first sign-in, and you'll be shown your recovery code to save.
+        </p>
+      </AuthShell>
+    );
   }
 
   if (recoveryCode) {
