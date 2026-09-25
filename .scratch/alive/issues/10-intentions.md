@@ -4,7 +4,7 @@
 
 **Blocked by:** 09
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] "I need to call the bank" creates an intention quoting those words with the date
 - [ ] A later "called the bank today" links to that intention

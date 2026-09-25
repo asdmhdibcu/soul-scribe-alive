@@ -2,7 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { decryptField, encryptField, hasMasterKey, isDecryptFailure } from "@/lib/crypto";
 import { loadOwnAi } from "@/lib/ai-client";
 import { extractFromMoment } from "@/lib/extraction.functions";
-import { nextThreadState, QUIET_AFTER_DAYS, validateExtraction } from "@/lib/sorting-model";
+import {
+  nextThreadState,
+  QUIET_AFTER_DAYS,
+  summarizeThread,
+  validateExtraction,
+} from "@/lib/sorting-model";
 
 /**
  * The silent filing pass. Runs in the background after captures and on app
@@ -204,4 +209,36 @@ export function sortPending(limit = 8) {
     running = null;
   });
   return running;
+}
+
+export type ThreadDetail = Thread & {
+  first: { day: string; quote: string } | null;
+  later: { day: string; quote: string }[];
+};
+
+/** Threads and intentions with their quoted mentions, decrypted on this device. */
+export async function loadThreadDetails(): Promise<ThreadDetail[]> {
+  const [threads, { data, error }] = await Promise.all([
+    loadThreads(),
+    supabase
+      .from("thread_mentions")
+      .select("thread_id, captured_at, quote_enc")
+      .order("captured_at", { ascending: false })
+      .limit(2000),
+  ]);
+  if (error) throw error;
+  const byThread = new Map<string, { capturedAt: string; quote: string }[]>();
+  for (const m of data ?? []) {
+    const list = byThread.get(m.thread_id) ?? [];
+    list.push({ capturedAt: m.captured_at, quote: await open(m.quote_enc) });
+    byThread.set(m.thread_id, list);
+  }
+  return threads.map((t) => ({ ...t, ...summarizeThread(byThread.get(t.id) ?? []) }));
+}
+
+/** Hiding lets a thread or intention go. It is not a "failed" or "done" flag. */
+export async function setThreadHidden(id: string, hidden: boolean) {
+  const { error } = await supabase.from("threads").update({ hidden }).eq("id", id);
+  if (error) throw error;
+  window.dispatchEvent(new Event(THREADS_CHANGED_EVENT));
 }

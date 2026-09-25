@@ -37,6 +37,7 @@ function AuthedLayout() {
           </Link>
           <nav className="flex items-center gap-6 text-sm text-muted-foreground">
             <Link to="/today" className="hover:text-gold-light transition-colors">Today</Link>
+            <Link to="/alive" className="hover:text-gold-light transition-colors">Alive</Link>
             <Link to="/vault" className="hover:text-gold-light transition-colors">Vault</Link>
             <Link to="/timeline" className="hover:text-gold-light transition-colors">Timeline</Link>
             <Link to="/insights" className="hover:text-gold-light transition-colors">Insights</Link>

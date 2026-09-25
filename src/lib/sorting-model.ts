@@ -55,3 +55,19 @@ export function nextThreadState(
 export function isQuiet(lastSeen: string, now: Date, days = QUIET_AFTER_DAYS) {
   return now.getTime() - new Date(lastSeen).getTime() > days * 24 * 60 * 60 * 1000;
 }
+
+/**
+ * How a thread or intention reads back: the first thing said, with its
+ * date, then later mentions newest first. Facts only, no "did you…?".
+ */
+export function summarizeThread(mentions: { capturedAt: string; quote: string }[]) {
+  const sorted = [...mentions].sort((a, b) => a.capturedAt.localeCompare(b.capturedAt));
+  const toDay = (m: { capturedAt: string; quote: string }) => ({
+    day: m.capturedAt.slice(0, 10),
+    quote: m.quote,
+  });
+  return {
+    first: sorted[0] ? toDay(sorted[0]) : null,
+    later: sorted.slice(1).reverse().map(toDay),
+  };
+}
