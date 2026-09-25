@@ -4,6 +4,7 @@ import { Feather, ImagePlus, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { loadStorageUsed, saveCapture, saveTranscript, storageLimitFor } from "@/lib/moments";
 import { transcribeAudio } from "@/lib/voice/transcribe";
+import { flush, outboxCount, OUTBOX_CHANGED_EVENT } from "@/lib/outbox";
 import { VoiceButton } from "@/components/voice/VoiceButton";
 import { formatBytes, MAX_PHOTOS, splitAttachments, storageCheck } from "@/lib/capture-model";
 import { usePlan } from "@/lib/plan";
@@ -23,13 +24,14 @@ export function CaptureButton() {
   // The full-screen reflection session has its own controls in that corner.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const hidden = pathname.startsWith("/today");
+  const pendingCount = usePendingCount();
 
   async function save(d: Draft) {
     setDraft(EMPTY);
     setOpen(false);
     const id = crypto.randomUUID();
     try {
-      await saveCapture({
+      const { synced } = await saveCapture({
         id,
         capturedAt: new Date().toISOString(),
         text: d.text,
@@ -37,7 +39,8 @@ export function CaptureButton() {
         files: d.files,
         audio: d.audio,
       });
-      toast.success(d.audio ? "Saved. Transcribing on this device…" : "Saved.");
+      if (!synced) toast.success("Saved on this device. It will sync when you're back online.");
+      else toast.success(d.audio ? "Saved. Transcribing on this device…" : "Saved.");
     } catch (e) {
       console.error(e);
       setDraft(d);
@@ -58,6 +61,15 @@ export function CaptureButton() {
 
   return (
     <>
+      {pendingCount > 0 && (
+        <div
+          role="status"
+          className="fixed bottom-[92px] right-6 z-40 rounded-full px-3 h-8 flex items-center text-[11px] text-gold-light"
+          style={{ background: "#16161F", border: "1px solid rgba(240,201,106,0.3)" }}
+        >
+          Saved on this device · syncing {pendingCount > 1 ? `(${pendingCount})` : ""}
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -80,6 +92,26 @@ export function CaptureButton() {
       )}
     </>
   );
+}
+
+/** Items waiting in the on-device outbox; flushes on load and when back online. */
+function usePendingCount() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const refresh = () => void outboxCount().then(setCount);
+    const retry = () => void flush();
+    window.addEventListener(OUTBOX_CHANGED_EVENT, refresh);
+    window.addEventListener("online", retry);
+    const timer = window.setInterval(retry, 60_000);
+    retry();
+    refresh();
+    return () => {
+      window.removeEventListener(OUTBOX_CHANGED_EVENT, refresh);
+      window.removeEventListener("online", retry);
+      window.clearInterval(timer);
+    };
+  }, []);
+  return count;
 }
 
 function CaptureSheet({

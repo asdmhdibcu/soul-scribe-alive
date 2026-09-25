@@ -11,6 +11,7 @@ import {
 } from "@/lib/crypto";
 import { daysWrittenInLast, type DayMood } from "@/lib/writing-stats";
 import { combineTextAndTranscript } from "@/lib/voice-model";
+import { enqueue, flush, registerSenders } from "@/lib/outbox";
 import {
   FREE_STORAGE_BYTES,
   SOUL_STORAGE_BYTES,
@@ -139,24 +140,8 @@ export async function loadDayMoods(): Promise<Record<string, DayMood>> {
 /** Fired after a capture is stored, so open pages (e.g. the Vault) can refresh. */
 export const MOMENT_SAVED_EVENT = "alive:moment-saved";
 
-/** Encrypts typed text on this device and stores it as a new moment. */
-export async function saveTextMoment(text: string) {
-  const prepared = prepareTextMoment(text, new Date());
-  if (!prepared) return;
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) throw new Error("Not signed in");
-  const { error } = await supabase.from("moments").insert({
-    user_id: u.user.id,
-    captured_at: prepared.captured_at,
-    kind: prepared.kind,
-    body_enc: await encryptField(prepared.text),
-  });
-  if (error) throw error;
-  window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
-}
-
 /* ------------------------------------------------------------------ */
-/* Capturing with photos and files                                     */
+/* Capturing: seal on the device, queue in the outbox, then upload     */
 /* ------------------------------------------------------------------ */
 
 export type CaptureInput = {
@@ -169,6 +154,27 @@ export type CaptureInput = {
   audio?: Blob | null;
 };
 
+/** A capture after encryption: safe to keep on the device until it uploads. */
+type SealedCapture = {
+  id: string;
+  userId: string;
+  capturedAt: string;
+  kind: string;
+  bodyEnc: string | null;
+  audioPath: string | null;
+  files: {
+    id: string;
+    path: string;
+    kind: "photo" | "file" | "audio";
+    blob: Blob;
+    nameEnc: string;
+    mimeEnc: string;
+    size: number;
+  }[];
+};
+
+type SealedTranscript = { momentId: string; bodyEnc: string };
+
 /** Bytes this person has stored (encrypted sizes of photos, files and audio). */
 export async function loadStorageUsed(): Promise<number> {
   const { data, error } = await supabase.from("moment_files").select("size_bytes");
@@ -180,88 +186,121 @@ export function storageLimitFor(plan: string | null) {
   return plan && plan !== "free" ? SOUL_STORAGE_BYTES : FREE_STORAGE_BYTES;
 }
 
-/**
- * Stores a capture: every file and the text are encrypted on this device
- * first. Uploads happen before the moment row, so a failed upload never
- * leaves a moment pointing at missing media.
- */
-export async function saveCapture(c: CaptureInput) {
-  const { data: u } = await supabase.auth.getUser();
-  if (!u.user) throw new Error("Not signed in");
-  const userId = u.user.id;
+async function currentUserId() {
+  // getSession reads the stored session, so this works offline too.
+  const { data } = await supabase.auth.getSession();
+  const id = data.session?.user.id;
+  if (!id) throw new Error("Not signed in");
+  return id;
+}
+
+async function sealCapture(c: CaptureInput): Promise<SealedCapture> {
+  const userId = await currentUserId();
   const key = requireMasterKey();
-
-  const uploads = [
-    ...c.photos.map((file) => ({ file: file as Blob, name: file.name, kind: "photo" as const })),
-    ...c.files.map((file) => ({ file: file as Blob, name: file.name, kind: "file" as const })),
-    ...(c.audio ? [{ file: c.audio, name: "voice-note", kind: "audio" as const }] : []),
+  const parts = [
+    ...c.photos.map((f) => ({ blob: f as Blob, name: f.name, kind: "photo" as const })),
+    ...c.files.map((f) => ({ blob: f as Blob, name: f.name, kind: "file" as const })),
+    ...(c.audio ? [{ blob: c.audio, name: "voice-note", kind: "audio" as const }] : []),
   ];
-  const stored: {
-    id: string;
-    path: string;
-    kind: string;
-    name: string;
-    mime: string;
-    size: number;
-  }[] = [];
-  try {
-    for (const u of uploads) {
-      const fileId = crypto.randomUUID();
-      const path = storagePath(userId, c.id, fileId);
-      const sealed = await encryptBlob(u.file, key);
-      const { error } = await supabase.storage
-        .from(MEDIA_BUCKET)
-        .upload(path, sealed, { contentType: "application/octet-stream", upsert: false });
-      if (error) throw error;
-      stored.push({
-        id: fileId,
-        path,
-        kind: u.kind,
-        name: u.name,
-        mime: u.file.type,
+  const files = await Promise.all(
+    parts.map(async (p) => {
+      const id = crypto.randomUUID();
+      const sealed = await encryptBlob(p.blob, key);
+      return {
+        id,
+        path: storagePath(userId, c.id, id),
+        kind: p.kind,
+        blob: sealed,
+        nameEnc: await encryptField(p.name),
+        mimeEnc: await encryptField(p.blob.type || "application/octet-stream"),
         size: sealed.size,
-      });
-    }
+      };
+    }),
+  );
+  const text = prepareTextMoment(c.text, new Date())?.text ?? "";
+  return {
+    id: c.id,
+    userId,
+    capturedAt: c.capturedAt,
+    kind: momentKindFor({
+      text,
+      photos: c.photos.length,
+      files: c.files.length,
+      audio: Boolean(c.audio),
+    }),
+    bodyEnc: text ? await encryptField(text) : null,
+    audioPath: files.find((f) => f.kind === "audio")?.path ?? null,
+    files,
+  };
+}
 
-    const text = c.text.trim() ? c.text : "";
-    const { error: momentErr } = await supabase.from("moments").insert({
-      id: c.id,
-      user_id: userId,
-      captured_at: c.capturedAt,
-      kind: momentKindFor({
-        text,
-        photos: c.photos.length,
-        files: c.files.length,
-        audio: Boolean(c.audio),
-      }),
-      body_enc: text ? await encryptField(text) : null,
-      audio_path: stored.find((s) => s.kind === "audio")?.path ?? null,
-    });
-    if (momentErr) throw momentErr;
+const isDuplicate = (e: { code?: string; message?: string } | null) =>
+  Boolean(e && (e.code === "23505" || /duplicate|already exists/i.test(e.message ?? "")));
 
-    if (stored.length) {
-      const rows = await Promise.all(
-        stored.map(async (s) => ({
-          id: s.id,
-          moment_id: c.id,
-          user_id: userId,
-          path: s.path,
-          kind: s.kind,
-          name_enc: await encryptField(s.name),
-          mime_enc: await encryptField(s.mime || "application/octet-stream"),
-          size_bytes: s.size,
-        })),
-      );
-      const { error: filesErr } = await supabase.from("moment_files").insert(rows);
-      if (filesErr) throw filesErr;
-    }
-  } catch (e) {
-    // Leave nothing half-stored behind; the caller keeps the draft to retry.
-    if (stored.length) await supabase.storage.from(MEDIA_BUCKET).remove(stored.map((s) => s.path));
-    await supabase.from("moments").delete().eq("id", c.id);
-    throw e;
+/**
+ * Uploads a sealed capture. Every step is safe to repeat (fixed ids, upsert
+ * for media, duplicates ignored), so a retry after a dropped connection
+ * finishes the job instead of creating copies.
+ */
+async function sendCapture(s: SealedCapture) {
+  for (const f of s.files) {
+    const { error } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(f.path, f.blob, { contentType: "application/octet-stream", upsert: true });
+    if (error) throw error;
+  }
+  const { error: momentErr } = await supabase.from("moments").insert({
+    id: s.id,
+    user_id: s.userId,
+    captured_at: s.capturedAt,
+    kind: s.kind,
+    body_enc: s.bodyEnc,
+    audio_path: s.audioPath,
+  });
+  if (momentErr && !isDuplicate(momentErr)) throw momentErr;
+  if (s.files.length) {
+    const { error: filesErr } = await supabase.from("moment_files").upsert(
+      s.files.map((f) => ({
+        id: f.id,
+        moment_id: s.id,
+        user_id: s.userId,
+        path: f.path,
+        kind: f.kind,
+        name_enc: f.nameEnc,
+        mime_enc: f.mimeEnc,
+        size_bytes: f.size,
+      })),
+      { onConflict: "id", ignoreDuplicates: true },
+    );
+    if (filesErr) throw filesErr;
   }
   window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
+}
+
+async function sendTranscript(t: SealedTranscript) {
+  const { error } = await supabase
+    .from("moments")
+    .update({ body_enc: t.bodyEnc })
+    .eq("id", t.momentId);
+  if (error) throw error;
+  window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
+}
+
+registerSenders({
+  capture: sendCapture as (p: never) => Promise<void>,
+  transcript: sendTranscript as (p: never) => Promise<void>,
+});
+
+/**
+ * Saves a capture: encrypts it on this device, queues it, and tries to upload.
+ * Returns synced=false when it is safely stored on the device but not yet
+ * uploaded (offline); it uploads automatically when the connection returns.
+ */
+export async function saveCapture(c: CaptureInput) {
+  const sealed = await sealCapture(c);
+  await enqueue({ id: c.id, type: "capture", queuedAt: new Date().toISOString(), payload: sealed });
+  const { remaining } = await flush();
+  return { synced: remaining === 0 };
 }
 
 /** Downloads, decrypts and saves an attachment under its original name. */
@@ -278,10 +317,12 @@ export async function downloadAttachment(a: { path: string; name: string; mime: 
 export async function saveTranscript(momentId: string, typed: string, transcript: string) {
   const body = combineTextAndTranscript(typed, transcript);
   if (!body) return;
-  const { error } = await supabase
-    .from("moments")
-    .update({ body_enc: await encryptField(body) })
-    .eq("id", momentId);
-  if (error) throw error;
-  window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
+  const payload: SealedTranscript = { momentId, bodyEnc: await encryptField(body) };
+  await enqueue({
+    id: `${momentId}:transcript`,
+    type: "transcript",
+    queuedAt: new Date().toISOString(),
+    payload,
+  });
+  await flush();
 }

@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Capturing in airplane mode succeeds and shows the syncing indicator
 - [ ] On reconnect the queued moments upload and the indicator clears
