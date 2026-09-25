@@ -46,6 +46,8 @@ export type Moment = {
   hasAudio: boolean;
   hasPhoto: boolean;
   audioPath: string | null;
+  /** Recording format (mp4 on iPhone, webm elsewhere), decrypted. */
+  audioMime: string | null;
   photoPath: string | null;
   attachments: Attachment[];
 };
@@ -58,6 +60,8 @@ export async function toMoment(
   const text = row.body_enc ? await open(row.body_enc) : null;
   const kind: MomentKind =
     row.kind === "voice" || row.kind === "photo" || row.kind === "file" ? row.kind : "text";
+  const audioRow = (row.moment_files ?? []).find((a) => a.kind === "audio");
+  const audioMime = audioRow?.mime_enc ? await open(audioRow.mime_enc) : null;
   // Audio rows exist only for storage accounting; the recording is audio_path.
   const attachments = await Promise.all(
     (row.moment_files ?? [])
@@ -81,6 +85,7 @@ export async function toMoment(
     hasAudio: Boolean(row.audio_path),
     hasPhoto: Boolean(row.photo_path) || attachments.some((a) => a.kind === "photo"),
     audioPath: row.audio_path,
+    audioMime,
     photoPath: row.photo_path,
     attachments,
   };

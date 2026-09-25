@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useRecorder } from "@/lib/voice/useRecorder";
+import { saveVoiceMoment } from "@/lib/voice/sessionVoice";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Mic, Pen, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -8,8 +10,6 @@ export type StoryPayload = {
   personal_notes: string;
   user_voice_story: string;
 };
-
-const MAX_SECONDS = 5 * 60;
 
 export function MyStory({
   initial,
@@ -24,102 +24,32 @@ export function MyStory({
   const [notes, setNotes] = useState(initial?.personal_notes ?? "");
   const [voiceStory, setVoiceStory] = useState(initial?.user_voice_story ?? "");
 
-  // Voice recording
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const [level, setLevel] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const startedAtRef = useRef<number>(0);
-  const tickRef = useRef<number | null>(null);
-  const interimRef = useRef("");
+  // Voice: tap to start, tap to stop, no time limit. The recording is saved
+  // encrypted as its own moment and transcribed on this device.
+  const rec = useRecorder();
+  const recording = rec.recording;
+  const elapsed = Math.floor(rec.elapsed);
+  const level = rec.levels.reduce((a, b) => a + b, 0) / rec.levels.length;
+  const [transcribing, setTranscribing] = useState(false);
 
-  useEffect(() => {
-    return () => stopAll();
-  }, []);
-
-  function stopAll() {
-    try { mediaRecorderRef.current?.stop(); } catch {}
-    try { recognitionRef.current?.stop(); } catch {}
-    try { audioCtxRef.current?.close(); } catch {}
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    if (tickRef.current) window.clearInterval(tickRef.current);
-    rafRef.current = null;
-    tickRef.current = null;
-  }
-
-  async function startRecording() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      mediaRecorderRef.current = mr;
-      mr.ondataavailable = () => {}; // we use SpeechRecognition for transcript only
-      mr.onstop = () => stream.getTracks().forEach((t) => t.stop());
-      mr.start();
-
-      // Web Speech transcript (if available)
-      const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = true;
-        rec.lang = "en-US";
-        interimRef.current = voiceStory ? voiceStory + " " : "";
-        rec.onresult = (e: any) => {
-          let finalText = "";
-          let interim = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const r = e.results[i];
-            if (r.isFinal) finalText += r[0].transcript + " ";
-            else interim += r[0].transcript;
-          }
-          if (finalText) interimRef.current += finalText;
-          setVoiceStory((interimRef.current + interim).trim());
-        };
-        rec.onerror = () => {};
-        rec.start();
-        recognitionRef.current = rec;
-      }
-
-      // Waveform analyser
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
-      const src = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      src.connect(analyser);
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-      const loop = () => {
-        analyser.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (let i = 0; i < buf.length; i++) {
-          const v = (buf[i] - 128) / 128;
-          sum += v * v;
-        }
-        setLevel(Math.min(1, Math.sqrt(sum / buf.length) * 2.4));
-        rafRef.current = requestAnimationFrame(loop);
-      };
-      loop();
-
-      startedAtRef.current = Date.now();
-      setElapsed(0);
-      tickRef.current = window.setInterval(() => {
-        const s = Math.floor((Date.now() - startedAtRef.current) / 1000);
-        setElapsed(s);
-        if (s >= MAX_SECONDS) stopRecording();
-      }, 250);
-      setRecording(true);
-    } catch (e: any) {
-      toast.error(e?.message ?? "Microphone unavailable");
+  async function toggleRecording() {
+    if (!recording) {
+      await rec.start();
+      if (rec.error) toast.error(rec.error);
+      return;
     }
-  }
-
-  function stopRecording() {
-    stopAll();
-    setRecording(false);
-    setLevel(0);
+    const blob = await rec.stop();
+    if (!blob) return;
+    setTranscribing(true);
+    try {
+      const text = await saveVoiceMoment(blob);
+      if (text) setVoiceStory((prev) => [prev, text].filter(Boolean).join(" "));
+      else toast.message("Recording saved. It couldn't be transcribed, but the audio is kept.");
+    } catch {
+      toast.error("Could not save the recording.");
+    } finally {
+      setTranscribing(false);
+    }
   }
 
   function clearVoice() {
@@ -217,12 +147,10 @@ export function MyStory({
                   </>
                 )}
                 <motion.button
-                  onPointerDown={(e) => {
-                    e.preventDefault();
-                    if (!recording) void startRecording();
-                  }}
-                  onPointerUp={() => recording && stopRecording()}
-                  onPointerLeave={() => recording && stopRecording()}
+                  type="button"
+                  onClick={() => void toggleRecording()}
+                  disabled={transcribing}
+                  aria-label={recording ? "Stop recording" : "Start recording"}
                   whileTap={{ scale: 0.96 }}
                   className="relative h-32 w-32 rounded-full flex items-center justify-center select-none"
                   style={{
@@ -242,7 +170,7 @@ export function MyStory({
               </div>
 
               <p className="text-[11px] uppercase tracking-[0.3em] text-gold-light/60">
-                {recording ? "Recording — release to stop" : "Hold to record · 5 min max"}
+                {transcribing ? "Transcribing on this device…" : recording ? "Recording · tap to stop" : "Tap to record"}
               </p>
 
               {/* Waveform / timer */}

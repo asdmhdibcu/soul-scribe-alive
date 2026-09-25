@@ -638,7 +638,7 @@ function EntryModal({
   const date = new Date(entry.capturedAt);
   const [isFav, setIsFav] = useState(false);
   const photoUrl = useMediaUrl(entry.photoPath, "image/jpeg");
-  const audioUrl = useMediaUrl(entry.audioPath, "audio/webm");
+  const audioUrl = useMediaUrl(entry.audioPath, entry.audioMime ?? "audio/webm");
 
   useEffect(() => {
     try {

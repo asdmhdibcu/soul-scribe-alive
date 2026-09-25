@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] A 3-minute recording with the phone untouched on a table produces a transcript on iPhone Safari
 - [ ] No onPointerDown/onPointerUp or cancel-on-leave recording

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Mic, Pen, Play, Square, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { saveVoiceMoment } from "@/lib/voice/sessionVoice";
+import { VoiceButton } from "@/components/voice/VoiceButton";
 import { GoldButton } from "@/components/auth/AuthShell";
 import { generateReflectionQuestion } from "@/lib/reflection.functions";
 import type { SwipeResult } from "./SparkCards";
@@ -82,23 +83,15 @@ export function OneQuestion({ context, onBack, onComplete }: Props) {
 
   const canSubmit = answerText.trim().length > 0 || voiceUrl !== null;
 
-  async function handleVoiceSave(blob: Blob, autoTranscript: string) {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    const path = `${u.user.id}/voice/answer-${Date.now()}.webm`;
-    const { error } = await supabase.storage
-      .from("alive-media")
-      .upload(path, blob, { contentType: blob.type || "audio/webm" });
-    if (error) {
-      toast.error(error.message);
-      return;
+  async function handleVoiceSave(blob: Blob, _autoTranscript: string) {
+    setVoiceUrl(URL.createObjectURL(blob));
+    try {
+      const transcript = await saveVoiceMoment(blob);
+      setVoiceTranscript(transcript);
+      if (transcript) setAnswerText(transcript);
+    } catch {
+      toast.error("Could not save the voice note.");
     }
-    const { data: signed } = await supabase.storage
-      .from("alive-media")
-      .createSignedUrl(path, 60 * 60 * 24);
-    if (signed?.signedUrl) setVoiceUrl(signed.signedUrl);
-    setVoiceTranscript(autoTranscript);
-    if (autoTranscript) setAnswerText(autoTranscript);
   }
 
   function submit() {
@@ -318,147 +311,9 @@ function ChoiceButton({
 }
 
 /* ────────── Reuse voice components inline (kept local to keep file self-contained) ────────── */
-function VoiceRecorder({
-  onSave,
-}: {
-  onSave: (blob: Blob, transcript: string) => void;
-}) {
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recRef = useRef<any>(null);
-  const transcriptRef = useRef("");
-
-  async function start() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      transcriptRef.current = "";
-      mr.ondataavailable = (e) => e.data.size > 0 && chunksRef.current.push(e.data);
-      mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        onSave(blob, transcriptRef.current.trim());
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setRecording(true);
-      setElapsed(0);
-      timerRef.current = setInterval(() => {
-        setElapsed((e) => {
-          if (e + 0.1 >= 60) {
-            stop();
-            return 60;
-          }
-          return e + 0.1;
-        });
-      }, 100);
-
-      const SR =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = false;
-        rec.lang = "en-US";
-        rec.onresult = (ev: any) => {
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            if (ev.results[i].isFinal) {
-              transcriptRef.current += ev.results[i][0].transcript + " ";
-            }
-          }
-        };
-        rec.onerror = () => {};
-        try {
-          rec.start();
-          recRef.current = rec;
-        } catch {}
-      }
-    } catch {
-      toast.error("Microphone permission denied.");
-    }
-  }
-
-  function stop() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (recRef.current) {
-      try { recRef.current.stop(); } catch {}
-      recRef.current = null;
-    }
-    if (mediaRef.current && mediaRef.current.state !== "inactive") {
-      mediaRef.current.stop();
-    }
-    setRecording(false);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (mediaRef.current && mediaRef.current.state !== "inactive") {
-        mediaRef.current.stop();
-      }
-    };
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center py-4">
-      <button
-        type="button"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          start();
-        }}
-        onPointerUp={stop}
-        onPointerCancel={stop}
-        onPointerLeave={() => recording && stop()}
-        className="relative h-24 w-24 rounded-full flex items-center justify-center select-none touch-none"
-        style={{
-          background: recording
-            ? "radial-gradient(circle at 35% 30%, #FFE8A8, #C9A84C 70%)"
-            : "radial-gradient(circle at 35% 30%, #F0C96A, #C9A84C 70%)",
-          boxShadow: recording
-            ? "0 0 60px 10px rgba(240,201,106,0.6)"
-            : "0 0 30px 4px rgba(240,201,106,0.3)",
-        }}
-      >
-        <Mic className="h-10 w-10 text-background" />
-        {recording && (
-          <motion.span
-            aria-hidden
-            className="absolute inset-0 rounded-full"
-            style={{ border: "2px solid rgba(240,201,106,0.7)" }}
-            animate={{ scale: [1, 1.6], opacity: [0.7, 0] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
-          />
-        )}
-      </button>
-      <div className="mt-3 text-[11px] uppercase tracking-[0.35em] text-gold-light/80">
-        {recording ? `Recording… ${elapsed.toFixed(1)}s / 60s` : "Hold to record"}
-      </div>
-      {recording && (
-        <div className="mt-3 flex items-end gap-1 h-8">
-          {Array.from({ length: 22 }).map((_, i) => (
-            <motion.span
-              key={i}
-              className="w-1 rounded-full bg-gold-light"
-              animate={{ height: ["20%", "100%", "30%", "80%", "20%"] }}
-              transition={{
-                duration: 0.9 + (i % 4) * 0.15,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: i * 0.04,
-              }}
-              style={{ height: "20%" }}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
+function VoiceRecorder({ onSave }: { onSave: (blob: Blob, transcript: string) => void }) {
+  // Tap to start, tap to stop, no time limit; transcribed on the device afterwards.
+  return <VoiceButton onRecorded={(blob) => onSave(blob, "")} />;
 }
 
 function VoicePlayback({

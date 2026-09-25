@@ -10,6 +10,7 @@ import {
   requireMasterKey,
 } from "@/lib/crypto";
 import { daysWrittenInLast, type DayMood } from "@/lib/writing-stats";
+import { combineTextAndTranscript } from "@/lib/voice-model";
 import {
   FREE_STORAGE_BYTES,
   SOUL_STORAGE_BYTES,
@@ -271,4 +272,16 @@ export async function downloadAttachment(a: { path: string; name: string; mime: 
   link.download = a.name;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+/** Adds an on-device transcript to a saved voice moment, after any typed words. */
+export async function saveTranscript(momentId: string, typed: string, transcript: string) {
+  const body = combineTextAndTranscript(typed, transcript);
+  if (!body) return;
+  const { error } = await supabase
+    .from("moments")
+    .update({ body_enc: await encryptField(body) })
+    .eq("id", momentId);
+  if (error) throw error;
+  window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
 }

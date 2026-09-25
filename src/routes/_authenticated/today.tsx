@@ -395,10 +395,9 @@ function TodayPage() {
                 oneAnswer: [session.memory?.one_sentence, session.answer?.answer_text]
                   .filter(Boolean)
                   .join("\n\n"),
-                voiceTranscript: session.memory?.voice_transcript ?? "",
-                story: [session.story?.personal_notes, session.story?.user_voice_story]
-                  .filter(Boolean)
-                  .join("\n\n"),
+                // Voice transcripts are already saved with their own voice moments.
+                voiceTranscript: "",
+                story: session.story?.personal_notes ?? "",
               })}
             />
           </motion.div>

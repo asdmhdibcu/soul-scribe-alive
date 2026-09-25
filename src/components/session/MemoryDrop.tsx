@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ArrowLeft, Camera, Mic, Pen, Play, Square, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { savePhotoMoment, saveVoiceMoment } from "@/lib/voice/sessionVoice";
+import { VoiceButton } from "@/components/voice/VoiceButton";
 import { GoldButton } from "@/components/auth/AuthShell";
 
 export type MemoryPayload = {
@@ -32,8 +33,6 @@ export function MemoryDrop({
 
   async function uploadPhotos(files: FileList | null) {
     if (!files || files.length === 0) return;
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
     const remaining = Math.max(0, 3 - photos.length);
     const selected = Array.from(files).slice(0, remaining);
     if (!selected.length) {
@@ -41,45 +40,29 @@ export function MemoryDrop({
       return;
     }
     setUploading(true);
-    const uploaded: string[] = [];
-    for (const file of selected) {
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${u.user.id}/photos/${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}.${ext}`;
-      const { error } = await supabase.storage
-        .from("alive-media")
-        .upload(path, file, { upsert: false });
-      if (error) {
-        toast.error(error.message);
-        continue;
-      }
-      const { data: signed } = await supabase.storage
-        .from("alive-media")
-        .createSignedUrl(path, 60 * 60 * 24);
-      if (signed?.signedUrl) uploaded.push(signed.signedUrl);
+    try {
+      // Encrypted on this device and kept as a photo moment; shown here from memory.
+      await savePhotoMoment(selected);
+    } catch {
+      toast.error("Could not save the photos.");
+      setUploading(false);
+      return;
     }
+    const uploaded = selected.map((f) => URL.createObjectURL(f));
     setUploading(false);
     setPhotos((p) => [...p, ...uploaded]);
   }
 
-  async function handleVoiceSave(blob: Blob, autoTranscript: string) {
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
-    const path = `${u.user.id}/voice/${Date.now()}.webm`;
-    const { error } = await supabase.storage
-      .from("alive-media")
-      .upload(path, blob, { contentType: blob.type || "audio/webm" });
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    const { data: signed } = await supabase.storage
-      .from("alive-media")
-      .createSignedUrl(path, 60 * 60 * 24);
-    if (signed?.signedUrl) setVoiceUrl(signed.signedUrl);
+  async function handleVoiceSave(blob: Blob, _autoTranscript: string) {
+    setVoiceUrl(URL.createObjectURL(blob));
     setVoiceBlob(blob);
-    setTranscript(autoTranscript);
+    setTranscript("Transcribing on this device…");
+    try {
+      setTranscript(await saveVoiceMoment(blob));
+    } catch {
+      setTranscript("");
+      toast.error("Could not save the voice note.");
+    }
   }
 
   function clearVoice() {
@@ -264,135 +247,9 @@ function Card({
 }
 
 /* ────────── Voice Recorder ────────── */
-function VoiceRecorder({
-  onSave,
-}: {
-  onSave: (blob: Blob, transcript: string) => void;
-}) {
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
-  const mediaRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recognitionRef = useRef<any>(null);
-  const transcriptRef = useRef<string>("");
-
-  async function start() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream);
-      chunksRef.current = [];
-      transcriptRef.current = "";
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      mr.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        onSave(blob, transcriptRef.current.trim());
-      };
-      mr.start();
-      mediaRef.current = mr;
-      setRecording(true);
-      setElapsed(0);
-      timerRef.current = setInterval(() => {
-        setElapsed((e) => {
-          if (e + 0.1 >= 60) {
-            stop();
-            return 60;
-          }
-          return e + 0.1;
-        });
-      }, 100);
-
-      // Web Speech transcription (best-effort)
-      const SR =
-        (window as any).SpeechRecognition ||
-        (window as any).webkitSpeechRecognition;
-      if (SR) {
-        const rec = new SR();
-        rec.continuous = true;
-        rec.interimResults = false;
-        rec.lang = "en-US";
-        rec.onresult = (ev: any) => {
-          for (let i = ev.resultIndex; i < ev.results.length; i++) {
-            if (ev.results[i].isFinal) {
-              transcriptRef.current += ev.results[i][0].transcript + " ";
-            }
-          }
-        };
-        rec.onerror = () => {};
-        try {
-          rec.start();
-          recognitionRef.current = rec;
-        } catch {}
-      }
-    } catch (e) {
-      toast.error("Microphone permission denied.");
-    }
-  }
-
-  function stop() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    if (recognitionRef.current) {
-      try { recognitionRef.current.stop(); } catch {}
-      recognitionRef.current = null;
-    }
-    if (mediaRef.current && mediaRef.current.state !== "inactive") {
-      mediaRef.current.stop();
-    }
-    setRecording(false);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      if (mediaRef.current && mediaRef.current.state !== "inactive") {
-        mediaRef.current.stop();
-      }
-    };
-  }, []);
-
-  return (
-    <div className="flex flex-col items-center py-3">
-      <button
-        type="button"
-        onPointerDown={(e) => {
-          e.preventDefault();
-          start();
-        }}
-        onPointerUp={stop}
-        onPointerCancel={stop}
-        onPointerLeave={() => recording && stop()}
-        className="relative h-20 w-20 rounded-full flex items-center justify-center select-none touch-none"
-        style={{
-          background: recording
-            ? "radial-gradient(circle at 35% 30%, #FFE8A8, #C9A84C 70%)"
-            : "radial-gradient(circle at 35% 30%, #F0C96A, #C9A84C 70%)",
-          boxShadow: recording
-            ? "0 0 50px 8px rgba(240,201,106,0.55)"
-            : "0 0 30px 4px rgba(240,201,106,0.3)",
-        }}
-      >
-        <Mic className="h-8 w-8 text-background" />
-        {recording && (
-          <motion.span
-            aria-hidden
-            className="absolute inset-0 rounded-full"
-            style={{ border: "2px solid rgba(240,201,106,0.7)" }}
-            animate={{ scale: [1, 1.5], opacity: [0.7, 0] }}
-            transition={{ duration: 1.4, repeat: Infinity, ease: "easeOut" }}
-          />
-        )}
-      </button>
-
-      <div className="mt-3 text-[11px] uppercase tracking-[0.35em] text-gold-light/80">
-        {recording ? `Recording… ${elapsed.toFixed(1)}s / 60s` : "Hold to record"}
-      </div>
-
-      {recording && <Waveform />}
-    </div>
-  );
+function VoiceRecorder({ onSave }: { onSave: (blob: Blob, transcript: string) => void }) {
+  // Tap to start, tap to stop, no time limit; transcribed on the device afterwards.
+  return <VoiceButton onRecorded={(blob) => onSave(blob, "")} />;
 }
 
 function Waveform() {

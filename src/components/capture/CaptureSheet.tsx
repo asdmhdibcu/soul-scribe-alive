@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { Feather, ImagePlus, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
-import { loadStorageUsed, saveCapture, storageLimitFor } from "@/lib/moments";
+import { loadStorageUsed, saveCapture, saveTranscript, storageLimitFor } from "@/lib/moments";
+import { transcribeAudio } from "@/lib/voice/transcribe";
+import { VoiceButton } from "@/components/voice/VoiceButton";
 import { formatBytes, MAX_PHOTOS, splitAttachments, storageCheck } from "@/lib/capture-model";
 import { usePlan } from "@/lib/plan";
 
-type Draft = { text: string; photos: File[]; files: File[] };
-const EMPTY: Draft = { text: "", photos: [], files: [] };
+type Draft = { text: string; photos: File[]; files: File[]; audio: Blob | null };
+const EMPTY: Draft = { text: "", photos: [], files: [], audio: null };
 
 /**
  * Capture anytime: one floating button on every signed-in page opens a sheet
@@ -25,21 +27,30 @@ export function CaptureButton() {
   async function save(d: Draft) {
     setDraft(EMPTY);
     setOpen(false);
+    const id = crypto.randomUUID();
     try {
       await saveCapture({
-        id: crypto.randomUUID(),
+        id,
         capturedAt: new Date().toISOString(),
         text: d.text,
         photos: d.photos,
         files: d.files,
+        audio: d.audio,
       });
-      toast.success("Saved.");
+      toast.success(d.audio ? "Saved. Transcribing on this device…" : "Saved.");
     } catch (e) {
       console.error(e);
       setDraft(d);
       toast.error("Could not save. Your capture is still in the sheet.", {
         action: { label: "Open", onClick: () => setOpen(true) },
       });
+      return;
+    }
+    // The moment is already saved with its audio; the transcript only indexes it.
+    if (d.audio) {
+      const { text } = await transcribeAudio(d.audio);
+      if (text) await saveTranscript(id, d.text, text).catch(() => {});
+      else toast.message("Voice note saved. It couldn't be transcribed, but the audio is kept.");
     }
   }
 
@@ -89,9 +100,12 @@ function CaptureSheet({
   const limit = storageLimitFor(plan);
   const [used, setUsed] = useState<number | null>(null);
 
-  const addBytes = [...draft.photos, ...draft.files].reduce((n, f) => n + f.size, 0);
+  const addBytes =
+    [...draft.photos, ...draft.files].reduce((n, f) => n + f.size, 0) + (draft.audio?.size ?? 0);
   const check = used === null ? null : storageCheck(used, addBytes, limit);
-  const hasContent = Boolean(draft.text.trim() || draft.photos.length || draft.files.length);
+  const hasContent = Boolean(
+    draft.text.trim() || draft.photos.length || draft.files.length || draft.audio,
+  );
   const canSave = hasContent && check?.ok !== false;
 
   useEffect(() => {
@@ -221,6 +235,24 @@ function CaptureSheet({
           <IconButton label="Add files" onClick={() => fileInput.current?.click()}>
             <Paperclip className="h-5 w-5" />
           </IconButton>
+          {draft.audio ? (
+            <span
+              className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-gold-light"
+              style={{ border: "1px solid rgba(240,201,106,0.35)", background: "#0A0A0F" }}
+            >
+              Voice note · {formatBytes(draft.audio.size)}
+              <button
+                type="button"
+                onClick={() => onChange({ ...draft, audio: null })}
+                aria-label="Remove voice note"
+                className="text-muted-foreground hover:text-gold-light"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ) : (
+            <VoiceButton compact onRecorded={(audio) => onChange({ ...draft, audio })} />
+          )}
           {used !== null && (
             <p
               className={`ml-auto text-[11px] ${check?.ok === false ? "text-red-300" : "text-muted-foreground"}`}
