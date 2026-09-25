@@ -1,614 +1,286 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { ArrowLeft, Check } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { GoldButton } from "@/components/auth/AuthShell";
+import { encryptJson } from "@/lib/crypto";
+import { saveCapture, saveTranscript } from "@/lib/moments";
+import { transcribeAudio } from "@/lib/voice/transcribe";
+import { VoiceButton } from "@/components/voice/VoiceButton";
 import { GoldParticles } from "@/components/landing/atmos";
-import { useServerFn } from "@tanstack/react-start";
+import {
+  profileMomentText,
+  profileReady,
+  yesterdayEvening,
+  type Profile,
+} from "@/lib/profile-model";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({ meta: [{ title: "Welcome — ALIVE" }] }),
   component: OnboardingPage,
 });
 
-const TOTAL_STEPS = 5;
+const field =
+  "mt-2 w-full rounded-[14px] bg-[#0A0A0F] px-4 py-3 text-[15px] text-foreground outline-none";
+const border = { border: "1px solid rgba(240,201,106,0.2)" };
 
-const INTENTS = [
-  { icon: "🪞", label: "Know myself deeply" },
-  { icon: "📈", label: "Build powerful habits" },
-  { icon: "🏆", label: "Become the best version of me" },
-  { icon: "🧠", label: "Understand my patterns" },
-  { icon: "💭", label: "Process my emotions" },
-  { icon: "👨‍👩‍👧", label: "Connect with my family" },
-  { icon: "💰", label: "Monetize my story" },
-  { icon: "🕌", label: "Grow spiritually" },
-  { icon: "🎯", label: "Achieve my goals" },
-  { icon: "😴", label: "Improve my wellbeing" },
-  { icon: "📸", label: "Capture my memories" },
-  { icon: "✍️", label: "Just write beautifully" },
-];
-
-const RHYTHMS = [
-  { icon: "🌅", title: "Morning Person", desc: "Start the day with clarity", window: "6am – 9am", time: "07:00" },
-  { icon: "☀️", title: "Midday Checker", desc: "Reset at lunch", window: "12pm – 2pm", time: "13:00" },
-  { icon: "🌆", title: "Evening Unwinder", desc: "Process the day", window: "7pm – 9pm", time: "20:00" },
-  { icon: "🌙", title: "Night Owl", desc: "When the world is quiet", window: "10pm – 12am", time: "23:00" },
-];
-
-const TONES = [
-  { id: "coach", icon: "🏆", title: "The Coach", desc: "Push me. Challenge me. Don't let me make excuses." },
-  { id: "friend", icon: "🤗", title: "The Friend", desc: "Listen. Understand. Never judge." },
-  { id: "mirror", icon: "🪞", title: "The Mirror", desc: "Just reflect me back. Help me see myself clearly." },
-  { id: "guide", icon: "🕌", title: "The Guide", desc: "Connect my days to something bigger. Faith first." },
-  { id: "motivator", icon: "⚡", title: "The Motivator", desc: "Hype me up. Remind me who I am." },
-];
-
+/**
+ * About two minutes: a short profile (name, what's going on, brief time are
+ * required), then "tell me about yesterday" so the first brief has two days
+ * to draw from. Everything is encrypted on this device.
+ */
 function OnboardingPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [name, setName] = useState<string>("friend");
-  const [intents, setIntents] = useState<string[]>([]);
-  const [rhythm, setRhythm] = useState<string | null>(null);
-  const [customTime, setCustomTime] = useState<string>("");
-  const [useCustom, setUseCustom] = useState(false);
-  const [tone, setTone] = useState<string | null>(null);
-  const [finishing, setFinishing] = useState(false);
+  const [step, setStep] = useState<"profile" | "yesterday">("profile");
+  const [profile, setProfile] = useState<Profile>({
+    name: "",
+    goingOn: "",
+    briefHour: 7,
+    work: "",
+    people: "",
+    goals: "",
+  });
+  const [more, setMore] = useState(false);
+  const [yesterday, setYesterday] = useState("");
+  const [audio, setAudio] = useState<Blob | null>(null);
+  const [busy, setBusy] = useState(false);
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      const n =
-        (data.user?.user_metadata?.name as string | undefined) ??
-        data.user?.email?.split("@")[0] ??
-        "friend";
-      setName(n.split(" ")[0]);
-    })();
+    void supabase.auth.getUser().then(({ data }) => {
+      const n = (data.user?.user_metadata?.name as string | undefined) ?? "";
+      if (n) setProfile((p) => ({ ...p, name: p.name || n }));
+    });
   }, []);
 
-  const canContinue =
-    (step === 0) ||
-    (step === 1 && intents.length > 0) ||
-    (step === 2 && (rhythm !== null || (useCustom && customTime.length > 0))) ||
-    (step === 3 && tone !== null) ||
-    step === 4;
+  const set = (k: keyof Profile) => (v: string | number) => setProfile((p) => ({ ...p, [k]: v }));
 
-  function next() {
-    if (step < TOTAL_STEPS - 1) setStep(step + 1);
-  }
-  function back() {
-    if (step > 0) setStep(step - 1);
-  }
-
-  async function finish() {
-    setFinishing(true);
-    const { data: u } = await supabase.auth.getUser();
-    if (!u.user) {
-      navigate({ to: "/auth" });
-      return;
+  async function saveProfile() {
+    setBusy(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not signed in");
+      const { error } = await supabase.from("user_prefs").upsert(
+        {
+          user_id: u.user.id,
+          brief_hour: profile.briefHour,
+          timezone,
+          profile_enc: await encryptJson(profile),
+        },
+        { onConflict: "user_id" },
+      );
+      if (error) throw error;
+      await supabase.from("users").update({ name: profile.name.trim() }).eq("id", u.user.id);
+      await saveCapture({
+        id: crypto.randomUUID(),
+        capturedAt: new Date().toISOString(),
+        text: profileMomentText(profile),
+        photos: [],
+        files: [],
+      });
+      setStep("yesterday");
+    } catch {
+      toast.error("Could not save. Please try again.");
+    } finally {
+      setBusy(false);
     }
-    const reminder_time =
-      useCustom && customTime
-        ? customTime
-        : RHYTHMS.find((r) => r.title === rhythm)?.time ?? null;
+  }
 
-    await supabase
-      .from("users")
-      .update({
-        onboarding_complete: true,
-        intents,
-        ai_tone: tone,
-        reminder_time,
-      })
-      .eq("id", u.user.id);
-
-    toast.success("Welcome to ALIVE.", {
-      description: "Your story begins now.",
-    });
-    navigate({ to: "/today" });
+  async function finish(skip: boolean) {
+    setBusy(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not signed in");
+      if (!skip && (yesterday.trim() || audio)) {
+        const id = crypto.randomUUID();
+        await saveCapture({
+          id,
+          capturedAt: yesterdayEvening(new Date()),
+          text: yesterday,
+          photos: [],
+          files: [],
+          audio,
+        });
+        if (audio) {
+          const blob = audio;
+          void transcribeAudio(blob).then(({ text }) =>
+            text ? saveTranscript(id, yesterday, text) : undefined,
+          );
+        }
+      }
+      await supabase.from("users").update({ onboarding_complete: true }).eq("id", u.user.id);
+      navigate({ to: "/today" });
+    } catch {
+      toast.error("Could not save. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
-    <div className="relative min-h-[100svh] bg-background text-foreground overflow-hidden isolate flex flex-col">
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 50% 20%, oklch(0.74 0.12 85 / 0.12), transparent 65%), radial-gradient(ellipse 100% 80% at 50% 120%, oklch(0 0 0 / 0.9), transparent 60%)",
-        }}
-      />
-      <GoldParticles density={40} />
+    <div className="relative min-h-screen">
+      <div className="fixed inset-0 -z-10 pointer-events-none opacity-50">
+        <GoldParticles density={24} />
+      </div>
+      <div className="mx-auto max-w-xl px-5 pt-12 pb-24">
+        {step === "profile" ? (
+          <>
+            <p className="text-[10px] uppercase tracking-[0.45em] text-gold-light/80">
+              Step 1 of 2
+            </p>
+            <h1 className="mt-2 font-display text-3xl text-gold-light tracking-tight">
+              A little about you
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground italic">
+              So Alive can help from day one. Encrypted on this device.
+            </p>
 
-      {/* Top bar */}
-      <div className="relative z-10 flex items-center justify-between px-5 pt-6">
-        <button
-          onClick={back}
-          disabled={step === 0 || finishing}
-          aria-label="Back"
-          className="h-10 w-10 rounded-full border border-gold/25 flex items-center justify-center text-gold-light disabled:opacity-30 disabled:cursor-not-allowed hover:bg-gold/5 transition"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </button>
-        <div className="flex items-center gap-2">
-          {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-            <span
-              key={i}
-              className="h-1.5 rounded-full transition-all duration-500"
-              style={{
-                width: i === step ? 28 : 8,
-                background:
-                  i <= step
-                    ? "linear-gradient(90deg, #C9A84C, #F0C96A)"
-                    : "rgba(201,168,76,0.18)",
-                boxShadow: i === step ? "0 0 12px rgba(240,201,106,0.5)" : undefined,
-              }}
+            <label className="mt-8 block text-sm text-foreground/85">
+              Your name
+              <input
+                value={profile.name}
+                onChange={(e) => set("name")(e.target.value)}
+                className={field}
+                style={border}
+              />
+            </label>
+            <label className="mt-5 block text-sm text-foreground/85">
+              What's going on in your life right now?
+              <textarea
+                value={profile.goingOn}
+                onChange={(e) => set("goingOn")(e.target.value)}
+                rows={4}
+                placeholder="A few sentences is plenty."
+                className={field}
+                style={{ ...border, fontFamily: "Georgia, serif" }}
+              />
+            </label>
+            <label className="mt-5 block text-sm text-foreground/85">
+              Your morning brief is ready at
+              <select
+                value={profile.briefHour}
+                onChange={(e) => set("briefHour")(Number(e.target.value))}
+                className={field}
+                style={border}
+              >
+                {Array.from({ length: 24 }, (_, h) => (
+                  <option key={h} value={h}>
+                    {new Date(2026, 0, 1, h).toLocaleTimeString(undefined, {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                Time zone: {timezone}
+              </span>
+            </label>
+
+            {!more ? (
+              <button
+                type="button"
+                onClick={() => setMore(true)}
+                className="mt-5 text-xs uppercase tracking-[0.3em] text-gold/80 hover:text-gold-light"
+              >
+                Add more (optional)
+              </button>
+            ) : (
+              <>
+                <label className="mt-5 block text-sm text-foreground/85">
+                  Your work <span className="text-muted-foreground">(optional)</span>
+                  <input
+                    value={profile.work}
+                    onChange={(e) => set("work")(e.target.value)}
+                    className={field}
+                    style={border}
+                  />
+                </label>
+                <label className="mt-5 block text-sm text-foreground/85">
+                  People who matter to you <span className="text-muted-foreground">(optional)</span>
+                  <input
+                    value={profile.people}
+                    onChange={(e) => set("people")(e.target.value)}
+                    className={field}
+                    style={border}
+                  />
+                </label>
+                <label className="mt-5 block text-sm text-foreground/85">
+                  What you're aiming for <span className="text-muted-foreground">(optional)</span>
+                  <input
+                    value={profile.goals}
+                    onChange={(e) => set("goals")(e.target.value)}
+                    className={field}
+                    style={border}
+                  />
+                </label>
+              </>
+            )}
+
+            <button
+              type="button"
+              disabled={busy || !profileReady(profile)}
+              onClick={() => void saveProfile()}
+              className="mt-8 h-12 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] text-background disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
+            >
+              Continue
+            </button>
+          </>
+        ) : (
+          <>
+            <p className="text-[10px] uppercase tracking-[0.45em] text-gold-light/80">
+              Step 2 of 2
+            </p>
+            <h1 className="mt-2 font-display text-3xl text-gold-light tracking-tight">
+              Tell me about yesterday
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground italic">
+              Type or talk. It's saved as yesterday, so tomorrow's brief has two days to draw from.
+            </p>
+            <textarea
+              value={yesterday}
+              onChange={(e) => setYesterday(e.target.value)}
+              rows={6}
+              placeholder="What happened, what stayed with you…"
+              className={`${field} mt-6`}
+              style={{ ...border, fontFamily: "Georgia, serif" }}
             />
-          ))}
-        </div>
-        <div className="w-10" />
-      </div>
-
-      {/* Step content */}
-      <div className="relative z-10 flex-1 flex items-center justify-center px-5 py-8">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={step}
-            initial={{ opacity: 0, x: 40 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="w-full max-w-2xl"
-          >
-            {step === 0 && <StepWelcome name={name} onNext={next} />}
-            {step === 1 && (
-              <StepIntents
-                selected={intents}
-                onToggle={(label) =>
-                  setIntents((s) =>
-                    s.includes(label) ? s.filter((l) => l !== label) : [...s, label],
-                  )
-                }
-                onNext={next}
-                canContinue={canContinue}
-              />
-            )}
-            {step === 2 && (
-              <StepRhythm
-                selected={rhythm}
-                onSelect={(t) => {
-                  setRhythm(t);
-                  setUseCustom(false);
-                }}
-                useCustom={useCustom}
-                setUseCustom={setUseCustom}
-                customTime={customTime}
-                setCustomTime={setCustomTime}
-                onNext={next}
-                canContinue={canContinue}
-              />
-            )}
-            {step === 3 && (
-              <StepTone
-                selected={tone}
-                onSelect={setTone}
-                onNext={next}
-                canContinue={canContinue}
-              />
-            )}
-            {step === 4 && <StepPromise onFinish={finish} loading={finishing} />}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
-
-/* ---------- STEP 1 ---------- */
-function StepWelcome({ name, onNext }: { name: string; onNext: () => void }) {
-  const lines = [
-    `Welcome to ALIVE, ${name}.`,
-    "Your story starts right now.",
-    "Let's set you up in 2 minutes.",
-  ];
-  const [shown, setShown] = useState(0);
-  useEffect(() => {
-    if (shown >= lines.length) return;
-    const t = setTimeout(() => setShown((s) => s + 1), shown === 0 ? 600 : 1400);
-    return () => clearTimeout(t);
-  }, [shown, lines.length]);
-
-  return (
-    <div className="flex flex-col items-center text-center">
-      {/* Gold orb */}
-      <motion.div
-        className="relative mb-12"
-        initial={{ scale: 0.6, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ duration: 1.2, ease: "easeOut" }}
-      >
-        <motion.div
-          className="h-40 w-40 rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle at 35% 30%, #FFE8A8 0%, #F0C96A 35%, #C9A84C 65%, rgba(201,168,76,0.1) 100%)",
-            boxShadow:
-              "0 0 80px 20px rgba(240,201,106,0.35), 0 0 160px 40px rgba(201,168,76,0.18), inset 0 -20px 40px rgba(120,80,20,0.3)",
-          }}
-          animate={{ scale: [1, 1.06, 1] }}
-          transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <motion.div
-          aria-hidden
-          className="absolute inset-0 rounded-full"
-          style={{ border: "1px solid rgba(240,201,106,0.35)" }}
-          animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
-          transition={{ duration: 2.8, repeat: Infinity, ease: "easeOut" }}
-        />
-      </motion.div>
-
-      <div className="min-h-[180px] space-y-5">
-        {lines.slice(0, shown).map((line, i) => (
-          <motion.p
-            key={i}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            className={
-              i === 0
-                ? "font-display text-3xl md:text-4xl tracking-tight"
-                : "font-body text-lg md:text-xl text-muted-foreground italic"
-            }
-          >
-            {line}
-          </motion.p>
-        ))}
-      </div>
-
-      <AnimatePresence>
-        {shown >= lines.length && (
-          <motion.div
-            className="mt-12 w-full max-w-xs"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-          >
-            <GoldButton type="button" onClick={onNext}>
-              I'm Ready →
-            </GoldButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* ---------- STEP 2 ---------- */
-function StepIntents({
-  selected,
-  onToggle,
-  onNext,
-  canContinue,
-}: {
-  selected: string[];
-  onToggle: (label: string) => void;
-  onNext: () => void;
-  canContinue: boolean;
-}) {
-  return (
-    <div>
-      <StepHeader
-        title="What do you want most from ALIVE?"
-        subtitle="Choose all that feel true."
-      />
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8">
-        {INTENTS.map((it) => {
-          const active = selected.includes(it.label);
-          return (
-            <button
-              key={it.label}
-              type="button"
-              onClick={() => onToggle(it.label)}
-              className="relative text-left rounded-[14px] p-4 transition-all duration-300"
-              style={{
-                background: active
-                  ? "linear-gradient(160deg, rgba(201,168,76,0.18), rgba(22,22,31,0.6))"
-                  : "rgba(22,22,31,0.65)",
-                border: active
-                  ? "1px solid rgba(240,201,106,0.7)"
-                  : "1px solid rgba(201,168,76,0.15)",
-                boxShadow: active
-                  ? "0 8px 30px -10px rgba(240,201,106,0.4), inset 0 1px 0 rgba(255,232,168,0.15)"
-                  : undefined,
-              }}
-            >
-              <div className="text-2xl mb-2">{it.icon}</div>
-              <div className="font-display text-[15px] leading-snug text-foreground">
-                {it.label}
-              </div>
-              {active && (
-                <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
-                  <Check className="h-3 w-3 text-background" strokeWidth={3} />
-                </div>
+            <div className="mt-4">
+              {audio ? (
+                <p className="text-sm text-gold-light">
+                  Voice note recorded.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setAudio(null)}
+                    className="text-muted-foreground underline"
+                  >
+                    Remove
+                  </button>
+                </p>
+              ) : (
+                <VoiceButton onRecorded={setAudio} />
               )}
-            </button>
-          );
-        })}
-      </div>
-      <ContinueButton onClick={onNext} disabled={!canContinue} />
-    </div>
-  );
-}
-
-/* ---------- STEP 3 ---------- */
-function StepRhythm({
-  selected,
-  onSelect,
-  useCustom,
-  setUseCustom,
-  customTime,
-  setCustomTime,
-  onNext,
-  canContinue,
-}: {
-  selected: string | null;
-  onSelect: (t: string) => void;
-  useCustom: boolean;
-  setUseCustom: (v: boolean) => void;
-  customTime: string;
-  setCustomTime: (v: string) => void;
-  onNext: () => void;
-  canContinue: boolean;
-}) {
-  return (
-    <div>
-      <StepHeader title="When is your best moment to reflect?" />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        {RHYTHMS.map((r) => {
-          const active = selected === r.title && !useCustom;
-          return (
+            </div>
             <button
-              key={r.title}
               type="button"
-              onClick={() => onSelect(r.title)}
-              className="text-left rounded-[14px] p-5 transition-all duration-300"
-              style={{
-                background: active
-                  ? "linear-gradient(160deg, rgba(201,168,76,0.2), rgba(22,22,31,0.6))"
-                  : "rgba(22,22,31,0.65)",
-                border: active
-                  ? "1px solid rgba(240,201,106,0.7)"
-                  : "1px solid rgba(201,168,76,0.15)",
-                boxShadow: active
-                  ? "0 10px 30px -10px rgba(240,201,106,0.4)"
-                  : undefined,
-              }}
+              disabled={busy || (!yesterday.trim() && !audio)}
+              onClick={() => void finish(false)}
+              className="mt-8 h-12 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] text-background disabled:opacity-40"
+              style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
             >
-              <div className="flex items-start gap-3">
-                <div className="text-3xl">{r.icon}</div>
-                <div className="flex-1">
-                  <div className="font-display text-lg text-foreground">{r.title}</div>
-                  <div className="text-sm text-muted-foreground italic">{r.desc}</div>
-                  <div className="text-xs text-gold/80 mt-1.5 tracking-wider uppercase">
-                    {r.window}
-                  </div>
-                </div>
-              </div>
+              Save and begin
             </button>
-          );
-        })}
-      </div>
-
-      <div className="rounded-[14px] border border-gold/15 bg-card/60 p-4 mb-4">
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useCustom}
-            onChange={(e) => setUseCustom(e.target.checked)}
-            className="h-4 w-4 accent-[#C9A84C]"
-          />
-          <span className="text-sm text-foreground">Pick a custom time</span>
-        </label>
-        {useCustom && (
-          <input
-            type="time"
-            value={customTime}
-            onChange={(e) => setCustomTime(e.target.value)}
-            className="mt-3 w-full bg-transparent border-b border-gold/30 px-0 py-2 text-lg text-foreground focus:outline-none focus:border-gold"
-          />
-        )}
-      </div>
-
-      <p className="text-center text-sm text-muted-foreground italic mb-6">
-        ALIVE will remind you gently. Never annoyingly.
-      </p>
-
-      <ContinueButton onClick={onNext} disabled={!canContinue} />
-    </div>
-  );
-}
-
-/* ---------- STEP 4 ---------- */
-function StepTone({
-  selected,
-  onSelect,
-  onNext,
-  canContinue,
-}: {
-  selected: string | null;
-  onSelect: (id: string) => void;
-  onNext: () => void;
-  canContinue: boolean;
-}) {
-  return (
-    <div>
-      <StepHeader title="How should ALIVE speak to you?" />
-      <div className="space-y-3 mb-8">
-        {TONES.map((t) => {
-          const active = selected === t.id;
-          return (
             <button
-              key={t.id}
               type="button"
-              onClick={() => onSelect(t.id)}
-              className="w-full text-left rounded-[14px] p-5 transition-all duration-300"
-              style={{
-                background: active
-                  ? "linear-gradient(160deg, rgba(201,168,76,0.2), rgba(22,22,31,0.6))"
-                  : "rgba(22,22,31,0.65)",
-                border: active
-                  ? "1px solid rgba(240,201,106,0.7)"
-                  : "1px solid rgba(201,168,76,0.15)",
-                boxShadow: active
-                  ? "0 10px 30px -10px rgba(240,201,106,0.4)"
-                  : undefined,
-              }}
+              disabled={busy}
+              onClick={() => void finish(true)}
+              className="mt-3 w-full text-xs uppercase tracking-[0.3em] text-muted-foreground hover:text-gold-light"
             >
-              <div className="flex items-start gap-4">
-                <div className="text-3xl">{t.icon}</div>
-                <div className="flex-1">
-                  <div className="font-display text-xl text-foreground">{t.title}</div>
-                  <div className="text-sm text-muted-foreground italic mt-1 leading-relaxed">
-                    {t.desc}
-                  </div>
-                </div>
-              </div>
+              Skip for now
             </button>
-          );
-        })}
-      </div>
-      <ContinueButton onClick={onNext} disabled={!canContinue} />
-    </div>
-  );
-}
-
-/* ---------- STEP 5 ---------- */
-function StepPromise({
-  onFinish,
-  loading,
-}: {
-  onFinish: () => void;
-  loading: boolean;
-}) {
-  const lines = [
-    "Before we begin —",
-    "Your diary belongs to you.",
-    "We cannot read it.",
-    "We will never sell it.",
-    "Not for any amount of money.",
-    "This is not a policy.",
-    "This is who we are.",
-  ];
-  const [shown, setShown] = useState(0);
-  const [showSeal, setShowSeal] = useState(false);
-
-  useEffect(() => {
-    if (shown < lines.length) {
-      const t = setTimeout(() => setShown((s) => s + 1), shown === 0 ? 500 : 900);
-      return () => clearTimeout(t);
-    }
-    const t = setTimeout(() => setShowSeal(true), 600);
-    return () => clearTimeout(t);
-  }, [shown, lines.length]);
-
-  return (
-    <div className="flex flex-col items-center text-center">
-      <div className="space-y-3 min-h-[280px] mb-6">
-        {lines.slice(0, shown).map((line, i) => (
-          <motion.p
-            key={i}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7 }}
-            className={
-              i === 0
-                ? "font-display text-2xl md:text-3xl text-gold-light italic"
-                : "font-body text-lg md:text-xl text-foreground/90"
-            }
-          >
-            {line}
-          </motion.p>
-        ))}
-      </div>
-
-      <AnimatePresence>
-        {showSeal && (
-          <motion.div
-            initial={{ scale: 2, opacity: 0, rotate: -25 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
-            className="relative mb-10"
-          >
-            <motion.div
-              className="h-28 w-28 rounded-full flex items-center justify-center font-display text-4xl"
-              style={{
-                background:
-                  "radial-gradient(circle at 35% 30%, #F0C96A 0%, #C9A84C 50%, #8a6f2e 100%)",
-                color: "#1a1208",
-                boxShadow:
-                  "0 20px 50px -10px rgba(201,168,76,0.5), inset 0 -8px 20px rgba(60,40,10,0.6), inset 0 4px 10px rgba(255,232,168,0.4)",
-                border: "2px solid rgba(255,232,168,0.4)",
-              }}
-            >
-              A
-            </motion.div>
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="mt-4 text-[10px] uppercase tracking-[0.5em] text-gold/80"
-            >
-              Sealed
-            </motion.p>
-          </motion.div>
+          </>
         )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showSeal && (
-          <motion.div
-            className="w-full"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.9, duration: 0.5 }}
-          >
-            <GoldButton type="button" onClick={onFinish} loading={loading}>
-              I Trust ALIVE — Let's Begin
-            </GoldButton>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/* ---------- Shared ---------- */
-function StepHeader({ title, subtitle }: { title: string; subtitle?: string }) {
-  return (
-    <div className="text-center mb-8">
-      <h2 className="font-display text-3xl md:text-4xl tracking-tight text-foreground mb-2">
-        {title}
-      </h2>
-      {subtitle && (
-        <p className="text-sm md:text-base text-muted-foreground italic">{subtitle}</p>
-      )}
-    </div>
-  );
-}
-
-function ContinueButton({
-  onClick,
-  disabled,
-}: {
-  onClick: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="max-w-xs mx-auto">
-      <GoldButton type="button" onClick={onClick} disabled={disabled}>
-        Continue →
-      </GoldButton>
+      </div>
     </div>
   );
 }

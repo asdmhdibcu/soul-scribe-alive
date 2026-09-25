@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Only the four required fields block progress
 - [ ] Profile answers are stored encrypted

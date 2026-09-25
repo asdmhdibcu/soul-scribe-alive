@@ -524,6 +524,7 @@ export type Database = {
           brief_hour: number
           last_brief_email_on: string | null
           mood_enabled: boolean
+          profile_enc: string | null
           timezone: string
           user_id: string
         }
@@ -536,6 +537,7 @@ export type Database = {
           brief_hour?: number
           last_brief_email_on?: string | null
           mood_enabled?: boolean
+          profile_enc?: string | null
           timezone?: string
           user_id: string
         }
@@ -548,6 +550,7 @@ export type Database = {
           brief_hour?: number
           last_brief_email_on?: string | null
           mood_enabled?: boolean
+          profile_enc?: string | null
           timezone?: string
           user_id?: string
         }
