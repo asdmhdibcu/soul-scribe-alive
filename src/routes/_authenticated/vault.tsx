@@ -1,4 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { loadOwnAi, useAiAccess } from "@/lib/ai-client";
+import { aiErrorMessage } from "@/lib/ai-model";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -75,7 +77,9 @@ function VaultPage() {
   const ask = useServerFn(askMemory);
   const { plan } = usePlan();
   const unlimitedVault = plan === "soul" || plan === "family" || plan === "legacy";
-  const canMemorySearch = unlimitedVault;
+  // Ask works on a paid plan or with the person's own AI key.
+  const { hasAi } = useAiAccess();
+  const canMemorySearch = hasAi;
   const vaultCapDate = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - FREE_LIMITS.vault_days);
@@ -170,12 +174,16 @@ function VaultPage() {
     setMemAnswer(null);
     try {
       const res = await ask({
-        data: { question: memQuestion.trim(), entries: momentsForAi(entries).slice(0, 120) },
+        data: {
+          ai: await loadOwnAi(),
+          question: memQuestion.trim(),
+          entries: momentsForAi(entries).slice(0, 120),
+        },
       });
       setMemAnswer(res.answer);
     } catch (e) {
       console.error(e);
-      toast.error("Your memory is resting. Try again.");
+      toast.error(aiErrorMessage(e));
     } finally {
       setMemLoading(false);
     }

@@ -499,6 +499,9 @@ export type Database = {
       }
       user_prefs: {
         Row: {
+          ai_key_enc: string | null
+          ai_model: string | null
+          ai_provider: string | null
           brief_email: boolean
           brief_hour: number
           mood_enabled: boolean
@@ -506,6 +509,9 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          ai_key_enc?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
           brief_email?: boolean
           brief_hour?: number
           mood_enabled?: boolean
@@ -513,6 +519,9 @@ export type Database = {
           user_id: string
         }
         Update: {
+          ai_key_enc?: string | null
+          ai_model?: string | null
+          ai_provider?: string | null
           brief_email?: boolean
           brief_hour?: number
           mood_enabled?: boolean

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { OwnAiSchema } from "@/lib/ai-schema";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const EntryLite = z.object({
@@ -27,11 +28,10 @@ const Schema = z.object({
 export const generateInsights = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) =>
-    z.object({ entries: z.array(EntryLite).default([]) }).parse(data)
+    z.object({
+        ai: OwnAiSchema, entries: z.array(EntryLite).default([]) }).parse(data)
   )
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+  .handler(async ({ data, context }) => {
 
     if (!data.entries.length) {
       return {
@@ -41,9 +41,13 @@ export const generateInsights = createServerFn({ method: "POST" })
       };
     }
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const { modelFor } = await import("./ai-router.server");
+    const model = await modelFor({
+      own: data.ai,
+      supabase: context.supabase,
+      userId: context.userId,
+      cloudModel: "google/gemini-3-flash-preview",
+    });
 
     const corpus = data.entries
       .slice(0, 14)

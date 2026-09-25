@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { loadOwnAi } from "@/lib/ai-client";
 import { motion, AnimatePresence } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
 import { ArrowLeft, Mic, Pen, Play, Square, Trash2 } from "lucide-react";
@@ -47,6 +48,7 @@ export function OneQuestion({ context, onBack, onComplete }: Props) {
       try {
         const result = await ask({
           data: {
+          ai: await loadOwnAi(),
             mood_x: context.mood_x,
             mood_y: context.mood_y,
             mood_label: context.mood_label,

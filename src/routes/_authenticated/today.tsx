@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { toast } from "sonner";
+import { loadOwnAi } from "@/lib/ai-client";
+import { aiErrorMessage } from "@/lib/ai-model";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/react";
 import { ArrowRight } from "lucide-react";
@@ -216,6 +219,7 @@ function TodayPage() {
     try {
       const result = await generate({
         data: {
+          ai: await loadOwnAi(),
           name: userName,
           mood_x: s.mood_x,
           mood_y: s.mood_y,
@@ -238,6 +242,27 @@ function TodayPage() {
       setScreen("diary");
     } catch (e) {
       console.error(e);
+      toast.error(aiErrorMessage(e));
+      // No AI: the page shows the person's own words and still saves them.
+      setDiary({
+        title: "Today, in your words",
+        content:
+          sessionRawText({
+            oneAnswer: [s.memory?.one_sentence, s.answer?.answer_text].filter(Boolean).join("\n\n"),
+            voiceTranscript: s.memory?.voice_transcript ?? "",
+            story: [story.personal_notes, story.user_voice_story].filter(Boolean).join("\n\n"),
+          }) || "Nothing written today, and that's fine.",
+        mood_label: s.mood_label,
+        mood_emoji: "✨",
+        ai_insight: "",
+        focus_word: "",
+        one_thing: "",
+        energy_forecast: "",
+        relationship_nudge: null,
+        body_signal: null,
+        morning_mission: "",
+        tonight_intention: "",
+      });
       setScreen("diary");
     }
   }

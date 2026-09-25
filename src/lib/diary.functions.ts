@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText, Output } from "ai";
 import { z } from "zod";
+import { OwnAiSchema } from "@/lib/ai-schema";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Card = z.object({
@@ -9,6 +10,7 @@ const Card = z.object({
 });
 
 const Input = z.object({
+  ai: OwnAiSchema,
   name: z.string().default("friend"),
   mood_x: z.number(),
   mood_y: z.number(),
@@ -69,13 +71,15 @@ Return ONLY the structured JSON with these fields:
 export const generateDiary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+  .handler(async ({ data, context }) => {
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-2.5-pro");
+    const { modelFor } = await import("./ai-router.server");
+    const model = await modelFor({
+      own: data.ai,
+      supabase: context.supabase,
+      userId: context.userId,
+      cloudModel: "google/gemini-2.5-pro",
+    });
 
     const up = data.cards.filter((c) => c.swipe === "up").map((c) => c.card);
     const down = data.cards.filter((c) => c.swipe === "down").map((c) => c.card);

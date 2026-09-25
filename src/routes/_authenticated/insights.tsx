@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useAiAccess } from "@/lib/ai-client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useInView } from "motion/react";
-import { useServerFn } from "@tanstack/react-start";
 import {
   LineChart,
   Line,
@@ -15,7 +15,6 @@ import { format, parseISO, subDays, startOfDay } from "date-fns";
 import { RefreshCw, Sparkles } from "lucide-react";
 import { loadDayMoods, loadDaysWritten, loadMoments } from "@/lib/moments";
 import { buildDayEntries } from "@/lib/writing-stats";
-import { generateInsights } from "@/lib/insights.functions";
 import { GoldParticles } from "@/components/landing/atmos";
 import { BecomingSection } from "@/components/insights/BecomingSection";
 import { usePlan } from "@/lib/plan";
@@ -55,7 +54,9 @@ function InsightsPage() {
   const [user, setUser] = useState<UserRow | null>(null);
   const [loading, setLoading] = useState(true);
   const { plan } = usePlan();
-  const isSoulPlus = plan === "soul" || plan === "family" || plan === "legacy";
+  // AI sections work on a paid plan or with the person's own AI key.
+  const { hasAi } = useAiAccess();
+  const isSoulPlus = hasAi || plan === "soul" || plan === "family" || plan === "legacy";
 
   useEffect(() => {
     (async () => {

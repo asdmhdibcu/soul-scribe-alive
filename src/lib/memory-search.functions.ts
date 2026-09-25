@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { z } from "zod";
+import { OwnAiSchema } from "@/lib/ai-schema";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Entry = z.object({
@@ -11,6 +12,7 @@ const Entry = z.object({
 });
 
 const Input = z.object({
+  ai: OwnAiSchema,
   question: z.string().min(1).max(500),
   entries: z.array(Entry).max(120),
 });
@@ -30,13 +32,15 @@ Rules:
 export const askMemory = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+  .handler(async ({ data, context }) => {
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-2.5-flash");
+    const { modelFor } = await import("./ai-router.server");
+    const model = await modelFor({
+      own: data.ai,
+      supabase: context.supabase,
+      userId: context.userId,
+      cloudModel: "google/gemini-2.5-flash",
+    });
 
     const corpus = data.entries
       .slice(0, 120)

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] The own key is stored encrypted and never logged
 - [ ] A free user with a key can run AI features; a free user without one sees an explanation

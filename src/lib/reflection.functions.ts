@@ -1,9 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { generateText } from "ai";
 import { z } from "zod";
+import { OwnAiSchema } from "@/lib/ai-schema";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const Input = z.object({
+  ai: OwnAiSchema,
   mood_x: z.number(),
   mood_y: z.number(),
   mood_label: z.string(),
@@ -29,13 +31,15 @@ Make it feel like a mirror — not a coach, not a therapist. A question that sur
 export const generateReflectionQuestion = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
-  .handler(async ({ data }) => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
+  .handler(async ({ data, context }) => {
 
-    const { createLovableAiGatewayProvider } = await import("./ai-gateway.server");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const { modelFor } = await import("./ai-router.server");
+    const model = await modelFor({
+      own: data.ai,
+      supabase: context.supabase,
+      userId: context.userId,
+      cloudModel: "google/gemini-3-flash-preview",
+    });
 
     const toneMap: Record<string, string> = {
       coach: "Direct. Challenge them to grow. Don't accept easy answers.",

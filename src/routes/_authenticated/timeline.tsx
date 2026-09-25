@@ -1,10 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { loadOwnAi, useAiAccess } from "@/lib/ai-client";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { BookMarked, Sparkles } from "lucide-react";
 import { generateTimeline } from "@/lib/timeline.functions";
-import { usePlan } from "@/lib/plan";
 import { UpgradeGate } from "@/components/UpgradeGate";
 import { loadMoments, momentsForAi, quotesInMoments } from "@/lib/moments";
 
@@ -46,14 +46,18 @@ function groupByYear(chapters: Chapter[]) {
 }
 
 function TimelinePage() {
-  const { can, loading: planLoading } = usePlan();
+  // Timeline works on a paid plan or with the person's own AI key.
+  const { hasAi, loading: planLoading } = useAiAccess();
+  const can = (_f: "timeline") => hasAi;
   const fetchTimeline = useServerFn(generateTimeline);
   const { data, isLoading, refetch, isFetching } = useQuery({
     queryKey: ["life-timeline"],
     queryFn: async () => {
       // Decrypt here; the server only sees dated text for this one request.
       const moments = await loadMoments({ limit: 400 });
-      const res = await fetchTimeline({ data: { entries: momentsForAi(moments) } });
+      const res = await fetchTimeline({
+        data: { ai: await loadOwnAi(), entries: momentsForAi(moments) },
+      });
       // Citation law: keep only memories quoted word for word from the moments.
       return {
         chapters: res.chapters.map((c) => ({

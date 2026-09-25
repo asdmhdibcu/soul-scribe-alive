@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedVaultRouteImport } from './routes/_authenticated/vault'
 import { Route as AuthenticatedTodayRouteImport } from './routes/_authenticated/today'
 import { Route as AuthenticatedTimelineRouteImport } from './routes/_authenticated/timeline'
+import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedLifeBookRouteImport } from './routes/_authenticated/life-book'
 import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
@@ -54,6 +55,11 @@ const AuthenticatedTimelineRoute = AuthenticatedTimelineRouteImport.update({
   path: '/timeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
@@ -77,6 +83,7 @@ export interface FileRoutesByFullPath {
   '/insights': typeof AuthenticatedInsightsRoute
   '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/timeline': typeof AuthenticatedTimelineRoute
   '/today': typeof AuthenticatedTodayRoute
   '/vault': typeof AuthenticatedVaultRoute
@@ -88,6 +95,7 @@ export interface FileRoutesByTo {
   '/insights': typeof AuthenticatedInsightsRoute
   '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
+  '/settings': typeof AuthenticatedSettingsRoute
   '/timeline': typeof AuthenticatedTimelineRoute
   '/today': typeof AuthenticatedTodayRoute
   '/vault': typeof AuthenticatedVaultRoute
@@ -101,6 +109,7 @@ export interface FileRoutesById {
   '/_authenticated/insights': typeof AuthenticatedInsightsRoute
   '/_authenticated/life-book': typeof AuthenticatedLifeBookRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
+  '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/timeline': typeof AuthenticatedTimelineRoute
   '/_authenticated/today': typeof AuthenticatedTodayRoute
   '/_authenticated/vault': typeof AuthenticatedVaultRoute
@@ -114,6 +123,7 @@ export interface FileRouteTypes {
     | '/insights'
     | '/life-book'
     | '/onboarding'
+    | '/settings'
     | '/timeline'
     | '/today'
     | '/vault'
@@ -125,6 +135,7 @@ export interface FileRouteTypes {
     | '/insights'
     | '/life-book'
     | '/onboarding'
+    | '/settings'
     | '/timeline'
     | '/today'
     | '/vault'
@@ -137,6 +148,7 @@ export interface FileRouteTypes {
     | '/_authenticated/insights'
     | '/_authenticated/life-book'
     | '/_authenticated/onboarding'
+    | '/_authenticated/settings'
     | '/_authenticated/timeline'
     | '/_authenticated/today'
     | '/_authenticated/vault'
@@ -200,6 +212,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedTimelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/settings': {
+      id: '/_authenticated/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/onboarding': {
       id: '/_authenticated/onboarding'
       path: '/onboarding'
@@ -228,6 +247,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
   AuthenticatedLifeBookRoute: typeof AuthenticatedLifeBookRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTimelineRoute: typeof AuthenticatedTimelineRoute
   AuthenticatedTodayRoute: typeof AuthenticatedTodayRoute
   AuthenticatedVaultRoute: typeof AuthenticatedVaultRoute
@@ -237,6 +257,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
   AuthenticatedLifeBookRoute: AuthenticatedLifeBookRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
+  AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTimelineRoute: AuthenticatedTimelineRoute,
   AuthenticatedTodayRoute: AuthenticatedTodayRoute,
   AuthenticatedVaultRoute: AuthenticatedVaultRoute,

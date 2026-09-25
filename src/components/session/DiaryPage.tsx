@@ -147,6 +147,9 @@ export function DiaryPage({
         )}
 
         {/* AI Insight box */}
+        {/* Shown only when the AI wrote something; without AI the page is the person's own words. */}
+        {diary.ai_insight && (
+          <>
         <div
           className="mt-12 rounded-2xl p-5"
           style={{
@@ -164,7 +167,11 @@ export function DiaryPage({
             {diary.ai_insight}
           </p>
         </div>
+          </>
+        )}
 
+        {diary.morning_mission && (
+          <>
         {/* Tomorrow divider */}
         <div className="mt-16 flex items-center gap-4">
           <div className="flex-1 h-px bg-gold/30" />
@@ -196,6 +203,8 @@ export function DiaryPage({
             <TomorrowCard icon="🌿" title="Body Signal" body={diary.body_signal} />
           )}
         </div>
+          </>
+        )}
 
         {/* Actions */}
         <div className="mt-12 mb-10 space-y-3">

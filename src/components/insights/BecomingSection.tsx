@@ -1,4 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { loadOwnAi } from "@/lib/ai-client";
+import { aiErrorMessage } from "@/lib/ai-model";
 import { motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
 import { TrendingUp, TrendingDown, Minus, RefreshCw, Sparkles } from "lucide-react";
@@ -88,6 +91,7 @@ export function BecomingSection({ entries }: { entries: Entry[] }) {
       const cur = RANGES.find((r) => r.key === range)!;
       const res = await run({
         data: {
+          ai: await loadOwnAi(),
           entries: windowEntries.map((e) => ({
             date: e.date,
             content: e.content,
@@ -108,6 +112,8 @@ export function BecomingSection({ entries }: { entries: Entry[] }) {
       });
       setData(res as Result);
       localStorage.setItem(cacheKey, JSON.stringify({ ts: Date.now(), data: res }));
+    } catch (e) {
+      toast.error(aiErrorMessage(e));
     } finally {
       setLoading(false);
     }
