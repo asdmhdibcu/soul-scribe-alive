@@ -4,7 +4,7 @@
 
 **Blocked by:** 05, 08
 
-**Status:** ready-for-agent
+**Status:** done (payments UI only, no billing yet)
 
 - [ ] Free users hitting 500 MB see a clear upgrade message
 - [ ] Soul users get cloud AI without a key

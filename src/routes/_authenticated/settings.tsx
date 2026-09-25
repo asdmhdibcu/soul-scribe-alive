@@ -167,6 +167,13 @@ function SettingsPage() {
         </Link>
         {" · "}
         <Link
+          to="/transparency"
+          className="text-gold hover:text-gold-light underline-offset-4 hover:underline"
+        >
+          How your data is handled
+        </Link>
+        {" · "}
+        <Link
           to="/pricing"
           className="text-gold hover:text-gold-light underline-offset-4 hover:underline"
         >

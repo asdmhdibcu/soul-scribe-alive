@@ -309,7 +309,7 @@ function CaptureSheet({
                   className={`ml-auto text-[11px] ${check?.ok === false ? "text-red-300" : "text-muted-foreground"}`}
                 >
                   {check?.ok === false
-                    ? `Not enough space: ${formatBytes(check.remainingBytes)} left of ${formatBytes(limit)}`
+                    ? `Not enough space: ${formatBytes(check.remainingBytes)} left of ${formatBytes(limit)}. Soul has 20 GB.`
                     : `${formatBytes(used + addBytes)} of ${formatBytes(limit)} used`}
                 </p>
               )}

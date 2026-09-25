@@ -23,7 +23,7 @@ export const Route = createFileRoute("/pricing")({
 });
 
 type Tier = {
-  id: "free" | "soul" | "family" | "legacy";
+  id: "free" | "soul" | "family";
   name: string;
   price: string;
   cadence: string;
@@ -39,14 +39,14 @@ const TIERS: Tier[] = [
     name: "Free",
     price: "$0",
     cadence: "Free forever",
-    tagline: "Begin the ritual.",
+    tagline: "Everything you write, kept.",
     features: [
-      "Daily Reflection: Mood Orb, Spark Cards, One Question, My Story, AI Diary",
-      "Vault: last 90 days",
-      "Basic mood tracking",
-      "Days written (no streaks)",
-      "Draft Recovery",
-      "50 photos · 20 voice memories",
+      "Unlimited writing, your whole history",
+      "Voice notes transcribed on your device",
+      "500 MB for photos, files and recordings",
+      "Search your entries",
+      "All AI features with your own AI key",
+      "End-to-end encryption",
     ],
   },
   {
@@ -54,56 +54,23 @@ const TIERS: Tier[] = [
     name: "Soul",
     price: "$9",
     cadence: "per month",
-    tagline: "Understand who you are becoming.",
+    tagline: "The AI, with nothing to set up.",
     badge: "Most Popular",
     highlight: true,
     features: [
       "Everything in Free",
-      "Unlimited Vault history",
-      "Unlimited photos & voice memories",
-      "AI Memory Search",
-      "Weekly Reflection Reports",
-      "Identity Evolution Dashboard",
-      "Future Self Letters",
-      "Life Timeline",
-      "Advanced Pattern Recognition",
+      "AI included: no key needed",
+      "Morning brief, Ask, Coach, Timeline, Insights",
+      "20 GB of storage",
     ],
   },
   {
     id: "family",
     name: "Family",
     price: "$19",
-    cadence: "per month",
+    cadence: "per month · coming later",
     tagline: "A life remembered together.",
-    features: [
-      "Everything in Soul",
-      "Child Profiles",
-      "Parent Dashboard",
-      "Family Habit Board",
-      "Family Challenges",
-      "Family Mood Overview",
-      "Legacy Letters",
-      "Family Time Capsules",
-      "Grandparent Bridge",
-      "Family Memory Book",
-      "Up to 5 family members",
-    ],
-  },
-  {
-    id: "legacy",
-    name: "Legacy",
-    price: "$39",
-    cadence: "per month",
-    tagline: "A life, archived for generations.",
-    features: [
-      "Everything in Family",
-      "Unlimited family members",
-      "Family Wisdom Vault",
-      "Multi-generation Timeline",
-      "Annual Life Book generation",
-      "Priority AI processing",
-      "Advanced archive search",
-    ],
+    features: ["Everything in Soul", "Legacy letters", "Family capsules"],
   },
 ];
 
@@ -127,9 +94,7 @@ function PricingPage() {
           <Link to="/" className="font-display text-lg tracking-[0.4em] text-gold">
             ALIVE
           </Link>
-          <p className="mt-8 text-[10px] uppercase tracking-[0.5em] text-gold/70">
-            A Life Archive
-          </p>
+          <p className="mt-8 text-[10px] uppercase tracking-[0.5em] text-gold/70">A Life Archive</p>
           <h1 className="mt-4 font-display text-4xl md:text-5xl text-gold-light tracking-tight">
             Preserve and understand a life.
           </h1>
@@ -137,12 +102,12 @@ function PricingPage() {
             className="mt-5 text-base md:text-lg text-muted-foreground italic"
             style={{ fontFamily: "Georgia, serif" }}
           >
-            Not a journal. Not a productivity app. A system for the life you're
-            actually living — and the one you'll one day leave behind.
+            Not a journal. Not a productivity app. A system for the life you're actually living —
+            and the one you'll one day leave behind.
           </p>
         </div>
 
-        <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {TIERS.map((tier, i) => (
             <motion.div
               key={tier.id}
@@ -185,10 +150,7 @@ function PricingPage() {
               <ul className="mt-6 space-y-2.5 text-sm text-foreground/85 flex-1">
                 {tier.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
-                    <Check
-                      className="mt-0.5 h-4 w-4 text-gold-light shrink-0"
-                      strokeWidth={2}
-                    />
+                    <Check className="mt-0.5 h-4 w-4 text-gold-light shrink-0" strokeWidth={2} />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -201,7 +163,8 @@ function PricingPage() {
                 style={
                   tier.highlight
                     ? {
-                        background: "linear-gradient(135deg, oklch(0.83 0.13 88), oklch(0.74 0.12 85))",
+                        background:
+                          "linear-gradient(135deg, oklch(0.83 0.13 88), oklch(0.74 0.12 85))",
                         color: "#0A0A0F",
                       }
                     : {
@@ -218,7 +181,10 @@ function PricingPage() {
         </div>
 
         <p className="mt-12 text-center text-xs text-muted-foreground tracking-wide">
-          Billing opens soon. Every plan keeps your story private and yours.
+          Billing opens soon. Every plan keeps your story private and yours.{" "}
+          <Link to="/transparency" className="underline underline-offset-4 hover:text-gold-light">
+            How your data is handled
+          </Link>
         </p>
       </div>
     </div>

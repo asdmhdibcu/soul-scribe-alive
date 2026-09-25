@@ -505,15 +505,12 @@ function Footer() {
           </p>
         </div>
         <nav className="flex flex-wrap gap-8 text-sm text-muted-foreground">
-          {["Privacy", "Promise", "About", "Blog"].map((l) => (
-            <a
-              key={l}
-              href="#"
-              className="hover:text-gold-light transition-colors"
-            >
-              {l}
-            </a>
-          ))}
+          <Link to="/transparency" className="hover:text-gold-light transition-colors">
+            Transparency
+          </Link>
+          <Link to="/pricing" className="hover:text-gold-light transition-colors">
+            Plans
+          </Link>
         </nav>
       </div>
       <div className="max-w-6xl mx-auto mt-12 pt-8 border-t border-border/60 text-xs uppercase tracking-[0.3em] text-muted-foreground/70 text-center">

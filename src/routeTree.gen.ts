@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TransparencyRouteImport } from './routes/transparency'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -26,6 +27,11 @@ import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedCoachRouteImport } from './routes/_authenticated/coach'
 import { Route as AuthenticatedAliveRouteImport } from './routes/_authenticated/alive'
 
+const TransparencyRoute = TransparencyRouteImport.update({
+  id: '/transparency',
+  path: '/transparency',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/pricing': typeof PricingRoute
+  '/transparency': typeof TransparencyRoute
   '/alive': typeof AuthenticatedAliveRoute
   '/coach': typeof AuthenticatedCoachRoute
   '/import': typeof AuthenticatedImportRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/pricing': typeof PricingRoute
+  '/transparency': typeof TransparencyRoute
   '/alive': typeof AuthenticatedAliveRoute
   '/coach': typeof AuthenticatedCoachRoute
   '/import': typeof AuthenticatedImportRoute
@@ -146,6 +154,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/pricing': typeof PricingRoute
+  '/transparency': typeof TransparencyRoute
   '/_authenticated/alive': typeof AuthenticatedAliveRoute
   '/_authenticated/coach': typeof AuthenticatedCoachRoute
   '/_authenticated/import': typeof AuthenticatedImportRoute
@@ -165,6 +174,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/pricing'
+    | '/transparency'
     | '/alive'
     | '/coach'
     | '/import'
@@ -182,6 +192,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/pricing'
+    | '/transparency'
     | '/alive'
     | '/coach'
     | '/import'
@@ -200,6 +211,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/pricing'
+    | '/transparency'
     | '/_authenticated/alive'
     | '/_authenticated/coach'
     | '/_authenticated/import'
@@ -219,11 +231,19 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   PricingRoute: typeof PricingRoute
+  TransparencyRoute: typeof TransparencyRoute
   ApiBriefRemindersRoute: typeof ApiBriefRemindersRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/transparency': {
+      id: '/transparency'
+      path: '/transparency'
+      fullPath: '/transparency'
+      preLoaderRoute: typeof TransparencyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
@@ -375,6 +395,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   PricingRoute: PricingRoute,
+  TransparencyRoute: TransparencyRoute,
   ApiBriefRemindersRoute: ApiBriefRemindersRoute,
 }
 export const routeTree = rootRouteImport

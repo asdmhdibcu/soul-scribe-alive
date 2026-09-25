@@ -23,13 +23,18 @@ Live: https://soul-scribe-alive.lovable.app
 | Offline capture: queued on the device, syncs when back online | Done |
 | Bring your own AI key (OpenAI, Anthropic, Google) or use Alive's AI on a paid plan | Done |
 | Today home: morning brief, today's moments | Done |
+| Legacy letters and family capsules (Family plan) | Later |
 | Six-step reflection session (Reflect tab), Insights, "Who you are becoming" | Working on the new data |
 | Sorting into topics and intentions (What's alive page) | Done |
 | Reading text from attached PDFs, Word files and text files | Done (images are not read) |
 | Ask from the capture sheet, with dates linking to that day | Done |
 | Morning brief on the home screen | Done |
 | Brief reminder email | Built; needs email set up (below) |
-| Coach, import, plans | Planned: see `.scratch/alive/` |
+| Evening review ("Anything to add?") on Today | Done |
+| Coach tab, plus at most one Coach line in the brief | Done |
+| Two-minute sign-up profile and "tell me about yesterday" | Done |
+| Import from files, pasted text and Day One | Done |
+| Free / Soul plans and limits, /transparency page | Done (no real billing yet) |
 
 ## Privacy model
 

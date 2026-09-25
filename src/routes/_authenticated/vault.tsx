@@ -19,7 +19,6 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { GoldParticles } from "@/components/landing/atmos";
 import { GoldButton } from "@/components/auth/AuthShell";
-import { usePlan, FREE_LIMITS } from "@/lib/plan";
 import { InlineLock } from "@/components/UpgradeGate";
 import { formatBytes } from "@/lib/capture-model";
 import {
@@ -72,16 +71,9 @@ function VaultPage() {
 
   const [memOpen, setMemOpen] = useState(false);
   const { day: dayFilter } = Route.useSearch();
-  const { plan } = usePlan();
-  const unlimitedVault = plan === "soul" || plan === "family" || plan === "legacy";
   // Ask works on a paid plan or with the person's own AI key.
   const { hasAi } = useAiAccess();
   const canMemorySearch = hasAi;
-  const vaultCapDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - FREE_LIMITS.vault_days);
-    return d.toISOString().slice(0, 10);
-  }, []);
 
   // Debounce search
   useEffect(() => {
@@ -121,7 +113,7 @@ function VaultPage() {
     (async () => {
       setLoading(true);
       try {
-        setEntries(await loadMoments({ sinceDay: unlimitedVault ? undefined : vaultCapDate }));
+        setEntries(await loadMoments());
       } catch (e) {
         console.error(e);
         toast.error("Could not load your vault.");
@@ -129,17 +121,17 @@ function VaultPage() {
         setLoading(false);
       }
     })();
-  }, [unlimitedVault, vaultCapDate]);
+  }, []);
 
   // A capture saved from the floating button shows up here straight away.
   useEffect(() => {
     const reload = () =>
-      loadMoments({ sinceDay: unlimitedVault ? undefined : vaultCapDate })
+      loadMoments()
         .then(setEntries)
         .catch(() => {});
     window.addEventListener(MOMENT_SAVED_EVENT, reload);
     return () => window.removeEventListener(MOMENT_SAVED_EVENT, reload);
-  }, [unlimitedVault, vaultCapDate]);
+  }, []);
 
   useEffect(() => setShown(PAGE_SIZE), [filter, debouncedSearch]);
 
