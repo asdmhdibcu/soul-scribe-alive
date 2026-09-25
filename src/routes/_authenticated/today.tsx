@@ -1,1045 +1,129 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { toast } from "sonner";
-import { loadOwnAi } from "@/lib/ai-client";
-import { aiErrorMessage } from "@/lib/ai-model";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/react";
-import { ArrowRight } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
-import { supabase } from "@/integrations/supabase/client";
-import { hasSessionToday } from "@/lib/moments";
-import { sessionRawText } from "@/lib/writing-stats";
-import { GoldParticles } from "@/components/landing/atmos";
-import { GoldButton } from "@/components/auth/AuthShell";
-import { SparkCards, type SwipeResult } from "@/components/session/SparkCards";
-import { MemoryDrop, type MemoryPayload } from "@/components/session/MemoryDrop";
-import { OneQuestion, type AnswerPayload } from "@/components/session/OneQuestion";
-import { GenerationChamber } from "@/components/session/GenerationChamber";
-import { DiaryPage } from "@/components/session/DiaryPage";
-import { MyStory, type StoryPayload } from "@/components/session/MyStory";
-import { generateDiary, type DiaryResult } from "@/lib/diary.functions";
-import {
-  loadDraft,
-  saveDraft,
-  clearDraft,
-  flushDraftBeacon,
-  type DraftStep,
-} from "@/lib/drafts";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Feather, Mic, Sparkles, Waypoints } from "lucide-react";
+import { BriefCard } from "@/components/brief/BriefCard";
+import { loadDaysWritten, loadMoments, MOMENT_SAVED_EVENT, type Moment } from "@/lib/moments";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
-  component: TodayPage,
+  component: TodayHome,
 });
 
-type Screen = "portal" | "mood" | "cards" | "memory" | "question" | "story" | "generate" | "diary";
-
-
-type SessionState = {
-  mood_x: number;
-  mood_y: number;
-  mood_color: string;
-  mood_label: string;
-  cards_swiped?: SwipeResult[];
-  memory?: MemoryPayload;
-  answer?: AnswerPayload;
-  story?: StoryPayload;
-};
-
-function TodayPage() {
-  const navigate = useNavigate();
-  const [screen, setScreen] = useState<Screen>("portal");
-  const [session, setSession] = useState<SessionState | null>(null);
-  const [aiTone, setAiTone] = useState<string | null>(null);
-  const [userName, setUserName] = useState("friend");
-  const [diary, setDiary] = useState<DiaryResult | null>(null);
-  const [draftPrompt, setDraftPrompt] = useState<null | {
-    step: DraftStep;
-    session: SessionState;
-    answer?: AnswerPayload;
-    updated_at: string;
-  }>(null);
-  const [recoveredBanner, setRecoveredBanner] = useState(false);
-  const generate = useServerFn(generateDiary);
-
-  // Active session = anything past the portal but before the diary is saved.
-  const inSession =
-    screen === "mood" ||
-    screen === "cards" ||
-    screen === "memory" ||
-    screen === "question" ||
-    screen === "story";
+/**
+ * Home: the morning brief, today's moments in time order, and the way into
+ * the weekly reflection. Nothing here asks anything of the person.
+ */
+function TodayHome() {
+  const [moments, setMoments] = useState<Moment[] | null>(null);
+  const [written, setWritten] = useState<number | null>(null);
+  const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const { data } = await supabase
-        .from("users")
-        .select("ai_tone, name")
-        .eq("id", u.user.id)
-        .maybeSingle();
-      setAiTone(data?.ai_tone ?? null);
-      setUserName((data?.name ?? u.user.email?.split("@")[0] ?? "friend").split(" ")[0]);
-
-      // Look for an unfinished draft and offer to resume
-      const draft = await loadDraft();
-      if (draft && draft.mood_data) {
-        const s: SessionState = {
-          mood_x: draft.mood_data.x,
-          mood_y: draft.mood_data.y,
-          mood_color: draft.mood_data.color,
-          mood_label: draft.mood_data.label,
-          cards_swiped: (draft.spark_cards as SwipeResult[] | null) ?? undefined,
-          memory: {
-            photos: draft.photos ?? [],
-            voice_url: null,
-            voice_transcript: draft.voice_transcript ?? "",
-            one_sentence: draft.one_sentence ?? "",
-          } satisfies MemoryPayload,
-          answer: draft.one_question_answer
-            ? ({
-                question: draft.one_question_answer.question,
-                answer_text: draft.one_question_answer.answer_text,
-              } as AnswerPayload)
-            : undefined,
-          story:
-            draft.personal_notes || draft.user_voice_story
-              ? {
-                  personal_notes: draft.personal_notes ?? "",
-                  user_voice_story: draft.user_voice_story ?? "",
-                }
-              : undefined,
-        };
-        const allowed: DraftStep[] = ["mood", "cards", "memory", "question", "story"];
-        const step = allowed.includes(draft.current_step) ? draft.current_step : "mood";
-        setDraftPrompt({ step, session: s, answer: s.answer, updated_at: draft.updated_at });
-      }
-    })();
-  }, []);
-
-  // Auto-save: on screen/session change AND every 10s while in session.
-  useEffect(() => {
-    if (!inSession || !session) return;
-    const snapshot = () => ({
-      current_step: screen as DraftStep,
-      mood_data: {
-        x: session.mood_x,
-        y: session.mood_y,
-        color: session.mood_color,
-        label: session.mood_label,
-      },
-      spark_cards: session.cards_swiped ?? [],
-      photos: session.memory?.photos ?? [],
-      voice_transcript: session.memory?.voice_transcript ?? null,
-      one_sentence: session.memory?.one_sentence ?? null,
-      one_question_answer: session.answer
-        ? {
-            question: session.answer.question ?? "",
-            answer_text: session.answer.answer_text ?? "",
-          }
-        : null,
-      personal_notes: session.story?.personal_notes ?? null,
-      user_voice_story: session.story?.user_voice_story ?? null,
-    });
-    // Save immediately on dependency change
-    void saveDraft(snapshot());
-    // Tick every 10s
-    const id = window.setInterval(() => void saveDraft(snapshot()), 10_000);
-    return () => window.clearInterval(id);
-  }, [inSession, screen, session]);
-
-  // Auto-save on browser close / tab background.
-  useEffect(() => {
-    if (!inSession || !session) return;
-    const buildPayload = async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      return {
-        user_id: u.user.id,
-        current_step: screen as DraftStep,
-        mood_data: {
-          x: session.mood_x,
-          y: session.mood_y,
-          color: session.mood_color,
-          label: session.mood_label,
-        },
-        spark_cards: session.cards_swiped ?? [],
-        photos: session.memory?.photos ?? [],
-        voice_transcript: session.memory?.voice_transcript ?? null,
-        one_sentence: session.memory?.one_sentence ?? null,
-        one_question_answer: session.answer
-          ? {
-              question: session.answer.question ?? "",
-              answer_text: session.answer.answer_text ?? "",
-            }
-          : null,
-        personal_notes: session.story?.personal_notes ?? null,
-        user_voice_story: session.story?.user_voice_story ?? null,
-      };
+    const load = () => {
+      void loadMoments({ sinceDay: today })
+        .then((all) => setMoments(all.filter((m) => m.day === today).reverse()))
+        .catch(() => setMoments([]));
+      void loadDaysWritten(30)
+        .then(setWritten)
+        .catch(() => {});
     };
-    const onHide = () => {
-      void buildPayload().then((p) => p && flushDraftBeacon(p));
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") onHide();
-    };
-    window.addEventListener("pagehide", onHide);
-    window.addEventListener("beforeunload", onHide);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("pagehide", onHide);
-      window.removeEventListener("beforeunload", onHide);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [inSession, screen, session]);
-
-  // Clear draft once diary is generated & shown.
-  useEffect(() => {
-    if (screen === "diary") void clearDraft();
-  }, [screen]);
-
-  function resumeDraft() {
-    if (!draftPrompt) return;
-    setSession(draftPrompt.session);
-    setScreen(draftPrompt.step);
-    setRecoveredBanner(true);
-    setDraftPrompt(null);
-    window.setTimeout(() => setRecoveredBanner(false), 3500);
-  }
-
-  async function discardDraft() {
-    setDraftPrompt(null);
-    await clearDraft();
-  }
-
-  async function startGeneration(story: StoryPayload) {
-    const s = session;
-    if (!s) return;
-    setScreen("generate");
-    try {
-      const result = await generate({
-        data: {
-          ai: await loadOwnAi(),
-          name: userName,
-          mood_x: s.mood_x,
-          mood_y: s.mood_y,
-          mood_label: s.mood_label,
-          mood_color: s.mood_color,
-          cards: (s.cards_swiped ?? []).map((c) => ({ card: c.card, swipe: c.swipe })),
-          one_sentence: s.memory?.one_sentence ?? "",
-          voice_transcript: s.memory?.voice_transcript ?? "",
-          has_photo: (s.memory?.photos.length ?? 0) > 0,
-          question: s.answer?.question ?? "",
-          answer: s.answer?.answer_text ?? "",
-          personal_notes: story.personal_notes ?? "",
-          user_voice_story: story.user_voice_story ?? "",
-          ai_tone: aiTone,
-        },
-      });
-      // Hold the chamber for at least 5s of cinematic time
-      await new Promise((r) => setTimeout(r, 1200));
-      setDiary(result);
-      setScreen("diary");
-    } catch (e) {
-      console.error(e);
-      toast.error(aiErrorMessage(e));
-      // No AI: the page shows the person's own words and still saves them.
-      setDiary({
-        title: "Today, in your words",
-        content:
-          sessionRawText({
-            oneAnswer: [s.memory?.one_sentence, s.answer?.answer_text].filter(Boolean).join("\n\n"),
-            voiceTranscript: s.memory?.voice_transcript ?? "",
-            story: [story.personal_notes, story.user_voice_story].filter(Boolean).join("\n\n"),
-          }) || "Nothing written today, and that's fine.",
-        mood_label: s.mood_label,
-        mood_emoji: "✨",
-        ai_insight: "",
-        focus_word: "",
-        one_thing: "",
-        energy_forecast: "",
-        relationship_nudge: null,
-        body_signal: null,
-        morning_mission: "",
-        tonight_intention: "",
-      });
-      setScreen("diary");
-    }
-  }
-
+    load();
+    window.addEventListener(MOMENT_SAVED_EVENT, load);
+    return () => window.removeEventListener(MOMENT_SAVED_EVENT, load);
+  }, [today]);
 
   return (
-    <div className="fixed inset-x-0 top-16 bottom-0 z-20 bg-background text-foreground overflow-hidden isolate">
-      <BackgroundAtmos />
-      <AnimatePresence mode="wait">
-        {screen === "portal" && (
-          <motion.div
-            key="portal"
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-          >
-            <PortalScreen onBegin={() => setScreen("mood")} />
-          </motion.div>
-        )}
-        {screen === "mood" && (
-          <motion.div
-            key="mood"
-            className="absolute inset-0"
-            initial={{ opacity: 0, scale: 1.05 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-          >
-            <MoodScreen
-              onConfirm={(s) => {
-                setSession(s);
-                setScreen("cards");
-              }}
-            />
-          </motion.div>
-        )}
-        {screen === "cards" && (
-          <motion.div
-            key="cards"
-            className="absolute inset-0"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.45 }}
-          >
-            <SparkCards
-              onExit={() => navigate({ to: "/" })}
-              onComplete={(results) => {
-                setSession((s) => (s ? { ...s, cards_swiped: results } : s));
-                setScreen("memory");
-              }}
-            />
-          </motion.div>
-        )}
-        {screen === "memory" && (
-          <motion.div
-            key="memory"
-            className="absolute inset-0"
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -30 }}
-            transition={{ duration: 0.45 }}
-          >
-            <MemoryDrop
-              onBack={() => setScreen("cards")}
-              onContinue={(m) => {
-                setSession((s) => (s ? { ...s, memory: m } : s));
-                setScreen("question");
-              }}
-            />
-          </motion.div>
-        )}
-        {screen === "question" && session && (
-          <motion.div
-            key="question"
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <OneQuestion
-              context={{
-                mood_x: session.mood_x,
-                mood_y: session.mood_y,
-                mood_label: session.mood_label,
-                cards: session.cards_swiped ?? [],
-                one_sentence: session.memory?.one_sentence ?? "",
-                has_photo: (session.memory?.photos.length ?? 0) > 0,
-                has_voice: !!session.memory?.voice_url,
-                ai_tone: aiTone,
-              }}
-              onBack={() => setScreen("memory")}
-              onComplete={(a) => {
-                setSession((s) => (s ? { ...s, answer: a } : s));
-                setScreen("story");
-              }}
-            />
-          </motion.div>
-        )}
-        {screen === "story" && session && (
-          <motion.div
-            key="story"
-            className="absolute inset-0"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -24 }}
-            transition={{ duration: 0.45 }}
-          >
-            <MyStory
-              initial={session.story}
-              onBack={() => setScreen("question")}
-              onContinue={(story) => {
-                setSession((s) => (s ? { ...s, story } : s));
-                void startGeneration(story);
-              }}
-            />
-          </motion.div>
-        )}
-        {screen === "generate" && session && (
-          <motion.div
-            key="generate"
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <GenerationChamber
-              moodColor={session.mood_color}
-              hasPhotos={(session.memory?.photos.length ?? 0) > 0}
-              hasVoice={!!session.memory?.voice_url}
-              hasText={!!(session.memory?.one_sentence ?? "").trim()}
-              cardsCount={session.cards_swiped?.length ?? 0}
-            />
-          </motion.div>
-        )}
-        {screen === "diary" && session && diary && (
-          <motion.div
-            key="diary"
-            className="absolute inset-0"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            <DiaryPage
-              diary={diary}
-              moodColor={session.mood_color}
-              moodX={session.mood_x}
-              moodY={session.mood_y}
-              photos={session.memory?.photos ?? []}
-              rawText={sessionRawText({
-                oneAnswer: [session.memory?.one_sentence, session.answer?.answer_text]
-                  .filter(Boolean)
-                  .join("\n\n"),
-                // Voice transcripts are already saved with their own voice moments.
-                voiceTranscript: "",
-                story: session.story?.personal_notes ?? "",
-              })}
-            />
-          </motion.div>
-        )}
+    <div className="mx-auto max-w-2xl px-5 pt-10 pb-28">
+      <p className="text-[10px] uppercase tracking-[0.45em] text-gold-light/80">
+        {new Date().toLocaleDateString(undefined, {
+          weekday: "long",
+          day: "numeric",
+          month: "long",
+        })}
+      </p>
+      <h1 className="mt-2 font-display text-3xl text-gold-light tracking-tight">Today</h1>
+      {written !== null && (
+        <p className="mt-1 text-sm text-muted-foreground italic">
+          You've written {written} of the last 30 days.
+        </p>
+      )}
 
-      </AnimatePresence>
+      <div className="mt-8">
+        <BriefCard />
+      </div>
 
-      {/* Recovered-from-draft banner */}
-      <AnimatePresence>
-        {recoveredBanner && (
-          <motion.div
-            key="recovered"
-            initial={{ opacity: 0, y: -16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -16 }}
-            transition={{ duration: 0.4 }}
-            className="absolute top-4 left-1/2 -translate-x-1/2 z-[55] px-4 py-2 rounded-full text-[11px] uppercase tracking-[0.3em] text-gold-light"
-            style={{
-              border: "1px solid rgba(240,201,106,0.45)",
-              background: "linear-gradient(160deg, rgba(240,201,106,0.18), rgba(22,22,31,0.85))",
-              backdropFilter: "blur(8px)",
-            }}
+      <section className="mt-10">
+        <h2 className="text-[10px] uppercase tracking-[0.4em] text-gold-light/80">So far today</h2>
+        {moments === null ? (
+          <p className="mt-4 text-sm text-muted-foreground italic">Opening…</p>
+        ) : moments.length === 0 ? (
+          <p
+            className="mt-4 text-sm text-muted-foreground"
+            style={{ fontFamily: "Georgia, serif" }}
           >
-            ✦ Recovered from draft
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Resume-draft modal */}
-      <AnimatePresence>
-        {draftPrompt && (
-          <motion.div
-            key="draft-modal"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-[60] flex items-center justify-center bg-black/75 px-6"
-          >
-            <motion.div
-              initial={{ scale: 0.94, opacity: 0, y: 12 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.94, opacity: 0 }}
-              transition={{ type: "spring", stiffness: 280, damping: 28 }}
-              className="rounded-2xl p-7 max-w-sm w-full text-center"
-              style={{
-                background: "linear-gradient(180deg, #16161F, #0E0E16)",
-                border: "1px solid rgba(240,201,106,0.4)",
-                boxShadow: "0 30px 90px -30px rgba(240,201,106,0.4)",
-              }}
-            >
-              <div className="mx-auto h-12 w-12 rounded-full mb-5"
-                style={{
-                  background:
-                    "radial-gradient(circle at 30% 30%, #FFE8A8, #F0C96A 35%, #C9A84C 65%, transparent 100%)",
-                  boxShadow: "0 0 30px rgba(240,201,106,0.5)",
-                }}
-              />
-              <h2 className="font-display text-2xl text-gold-light">
-                Your story is safely saved.
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground italic">
-                {formatRelative(draftPrompt.updated_at)}
-              </p>
-              <div className="mt-6 space-y-3">
-                <GoldButton type="button" onClick={resumeDraft}>
-                  Continue Writing
-                </GoldButton>
-                <button
-                  type="button"
-                  onClick={() => void discardDraft()}
-                  className="w-full text-xs tracking-[0.3em] uppercase text-muted-foreground hover:text-gold-light transition py-2"
+            Nothing yet. Tap the <Feather className="inline h-4 w-4 text-gold" /> whenever
+            something's on your mind.
+          </p>
+        ) : (
+          <ol className="mt-4 space-y-3">
+            {moments.map((m) => (
+              <li key={m.id}>
+                <Link
+                  to="/vault"
+                  search={{ day: today }}
+                  className="block rounded-[14px] p-4 hover:border-gold/40"
+                  style={{ background: "#16161F", border: "1px solid rgba(240,201,106,0.14)" }}
                 >
-                  Start Fresh
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                    <span>
+                      {new Date(m.capturedAt).toLocaleTimeString(undefined, {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    {m.hasAudio && <Mic className="h-3 w-3" aria-label="Voice" />}
+                  </div>
+                  <p
+                    className="mt-1 text-[15px] text-foreground/85 line-clamp-3"
+                    style={{ fontFamily: "Georgia, serif" }}
+                  >
+                    {m.decryptFailed
+                      ? "This entry could not be decrypted."
+                      : m.text ||
+                        m.attachments[0]?.name ||
+                        (m.hasAudio ? "Voice note (transcribing)" : "Photo")}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ol>
         )}
-      </AnimatePresence>
-    </div>
-  );
-}
+      </section>
 
-function formatRelative(iso: string): string {
-  const then = new Date(iso).getTime();
-  const diff = Date.now() - then;
-  const mins = Math.round(diff / 60000);
-  if (mins < 1) return "Saved just now";
-  if (mins < 60) return `Saved ${mins} min ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `Saved ${hrs} hr ago`;
-  const days = Math.round(hrs / 24);
-  return `Saved ${days} day${days === 1 ? "" : "s"} ago`;
-}
-
-
-
-
-
-/* ────────────────────────────── BACKGROUND ────────────────────────────── */
-function BackgroundAtmos() {
-  return (
-    <>
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 50% 25%, oklch(0.74 0.12 85 / 0.10), transparent 65%), radial-gradient(ellipse 100% 80% at 50% 120%, oklch(0 0 0 / 0.92), transparent 60%)",
-        }}
-      />
-      <GoldParticles density={40} />
-    </>
-  );
-}
-
-/* ────────────────────────────── SCREEN 1 ────────────────────────────── */
-function PortalScreen({ onBegin }: { onBegin: () => void }) {
-  const navigate = useNavigate();
-  const [name, setName] = useState("friend");
-  const [greeting, setGreeting] = useState("");
-  const [existing, setExisting] = useState<null | { id: string }>(null);
-  const [checking, setChecking] = useState(true);
-  const [step, setStep] = useState(0); // 0: greeting, 1: today is yours, 2: capture, 3: tap
-  const [tapped, setTapped] = useState(false);
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    setGreeting(
-      hour < 5
-        ? "Late night"
-        : hour < 12
-        ? "Good morning"
-        : hour < 17
-        ? "Good afternoon"
-        : hour < 21
-        ? "Good evening"
-        : "Quiet night",
-    );
-
-    (async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return;
-      const meta = (u.user.user_metadata?.name as string | undefined) ?? null;
-      const fromRow = await supabase
-        .from("users")
-        .select("name")
-        .eq("id", u.user.id)
-        .maybeSingle();
-      const n = (fromRow.data?.name ?? meta ?? u.user.email?.split("@")[0] ?? "friend")
-        .split(" ")[0];
-      setName(n);
-
-      if (await hasSessionToday()) setExisting({ id: "today" });
-      setChecking(false);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (checking || existing) return;
-    if (step >= 3) return;
-    const delays = [600, 1500, 1400, 0];
-    const t = setTimeout(() => setStep((s) => s + 1), delays[step]);
-    return () => clearTimeout(t);
-  }, [step, checking, existing]);
-
-  if (checking) {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <Orb size={120} pulse />
-      </div>
-    );
-  }
-
-  if (existing) {
-    return (
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-8 text-center">
-        <Orb size={140} pulse />
-        <h2 className="mt-10 font-display text-3xl md:text-4xl tracking-tight">
-          You already captured today.
-        </h2>
-        <p className="mt-3 text-muted-foreground italic max-w-md">
-          Tomorrow will offer its own questions. Or revisit what you wrote.
-        </p>
-        <div className="mt-10 flex flex-col gap-3 w-full max-w-xs">
-          <GoldButton
-            type="button"
-            onClick={() => navigate({ to: "/today", search: { view: existing.id } as never })}
-          >
-            View Today's Entry
-          </GoldButton>
-          <button
-            type="button"
-            onClick={onBegin}
-            className="text-sm text-muted-foreground hover:text-gold-light transition tracking-[0.2em] uppercase"
-          >
-            Redo session
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  function handleTap() {
-    if (tapped) return;
-    setTapped(true);
-    setTimeout(onBegin, 700);
-  }
-
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-      <motion.div
-        animate={tapped ? { scale: 14, opacity: 0 } : { scale: 1, opacity: 1 }}
-        transition={{ duration: 0.7, ease: [0.55, 0, 0.7, 1] }}
-      >
-        <Orb size={180} pulse />
-      </motion.div>
-
-      <div className="mt-12 min-h-[140px] space-y-3">
-        <AnimatePresence>
-          {step >= 1 && (
-            <motion.p
-              key="g"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="font-display text-3xl md:text-4xl tracking-tight"
-            >
-              {greeting},{" "}
-              <span className="italic text-gold-light">{name}.</span>
-            </motion.p>
-          )}
-          {step >= 2 && (
-            <motion.p
-              key="t"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="font-body text-lg text-muted-foreground italic"
-            >
-              Today is yours.
-            </motion.p>
-          )}
-          {step >= 3 && (
-            <motion.p
-              key="c"
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8 }}
-              className="font-body text-lg text-muted-foreground italic"
-            >
-              Let's capture it.
-            </motion.p>
-          )}
-        </AnimatePresence>
-      </div>
-
-      <AnimatePresence>
-        {step >= 3 && !tapped && (
-          <motion.button
-            key="tap"
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.6, duration: 0.6 }}
-            onClick={handleTap}
-            className="relative mt-14 text-[11px] uppercase tracking-[0.5em] text-gold-light"
-          >
-            <span className="relative z-10">Tap to Begin</span>
-            <motion.span
-              aria-hidden
-              className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-12 w-40 rounded-full"
-              style={{ border: "1px solid rgba(240,201,106,0.4)" }}
-              animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeOut" }}
-            />
-          </motion.button>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function Orb({ size, pulse }: { size: number; pulse?: boolean }) {
-  return (
-    <motion.div
-      className="rounded-full relative"
-      style={{
-        width: size,
-        height: size,
-        background:
-          "radial-gradient(circle at 35% 30%, #FFE8A8 0%, #F0C96A 30%, #C9A84C 60%, rgba(201,168,76,0.15) 100%)",
-        boxShadow:
-          "0 0 80px 18px rgba(240,201,106,0.32), 0 0 160px 40px rgba(201,168,76,0.18), inset 0 -20px 40px rgba(120,80,20,0.3)",
-      }}
-      animate={pulse ? { scale: [1, 1.07, 1] } : undefined}
-      transition={pulse ? { duration: 3.4, repeat: Infinity, ease: "easeInOut" } : undefined}
-    />
-  );
-}
-
-/* ────────────────────────────── SCREEN 2 ────────────────────────────── */
-const MOOD_LABELS: Record<string, string[]> = {
-  tr: ["Energized", "Motivated", "Grateful"], // top-right
-  tl: ["Calm", "Reflective", "Peaceful"],
-  br: ["Angry", "Frustrated", "Intense"],
-  bl: ["Drained", "Heavy", "Sad"],
-};
-
-// Map (x,y) in [-1, 1] to one of the four corner color anchors via bilinear interp.
-function moodColorFor(x: number, y: number): string {
-  // x: -1 left (heavy/low) → +1 right (alive/high)
-  // y: -1 bottom (dark) → +1 top (bright)
-  // Corners:
-  const TR = [201, 168, 76];   // warm gold #C9A84C
-  const TL = [232, 184, 109];  // soft amber #E8B86D
-  const BR = [139, 58, 58];    // storm red #8B3A3A
-  const BL = [26, 26, 62];     // deep navy #1A1A3E
-  const u = (x + 1) / 2; // 0..1 left→right
-  const v = (y + 1) / 2; // 0..1 bottom→top
-  const top = TL.map((tl, i) => tl + (TR[i] - tl) * u);
-  const bot = BL.map((bl, i) => bl + (BR[i] - bl) * u);
-  const c = top.map((t, i) => Math.round(bot[i] + (t - bot[i]) * v));
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
-
-function emotionFor(x: number, y: number): string {
-  const r = Math.hypot(x, y);
-  if (r < 0.18) return "Quietly Centered";
-  const corner = x >= 0 ? (y >= 0 ? "tr" : "br") : y >= 0 ? "tl" : "bl";
-  const list = MOOD_LABELS[corner];
-  // Weight by distance from corner (closer to corner = first label)
-  const idx = Math.min(list.length - 1, Math.floor((1 - r) * list.length));
-  const map: Record<string, string> = {
-    tr: ["Fully Alive", "Motivated", "Quietly Determined"][idx] ?? list[0],
-    tl: ["Deeply Peaceful", "Reflective", "Softly Calm"][idx] ?? list[0],
-    br: ["Burning", "Frustrated", "Tense"][idx] ?? list[0],
-    bl: ["Heavy", "Worn Thin", "Quietly Sad"][idx] ?? list[0],
-  };
-  return map[corner];
-}
-
-function MoodScreen({ onConfirm }: { onConfirm: (s: SessionState) => void }) {
-  const areaRef = useRef<HTMLDivElement>(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const [normX, setNormX] = useState(0);
-  const [normY, setNormY] = useState(0);
-  const [bounds, setBounds] = useState({ w: 320, h: 320 });
-  const [moved, setMoved] = useState(false);
-  const [showCta, setShowCta] = useState(false);
-  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    function measure() {
-      if (!areaRef.current) return;
-      const r = areaRef.current.getBoundingClientRect();
-      const s = Math.min(r.width, r.height);
-      setBounds({ w: s, h: s });
-    }
-    measure();
-    window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
-  }, []);
-
-  // Update normalized coords whenever motion values change
-  useEffect(() => {
-    const unsubX = x.on("change", (v) => {
-      const half = bounds.w / 2;
-      setNormX(Math.max(-1, Math.min(1, v / half)));
-    });
-    const unsubY = y.on("change", (v) => {
-      const half = bounds.h / 2;
-      // Invert Y so up = positive
-      setNormY(Math.max(-1, Math.min(1, -v / half)));
-    });
-    return () => {
-      unsubX();
-      unsubY();
-    };
-  }, [x, y, bounds]);
-
-  // Idle detection
-  useEffect(() => {
-    if (!moved) return;
-    setShowCta(false);
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => setShowCta(true), 5000);
-    return () => {
-      if (idleTimer.current) clearTimeout(idleTimer.current);
-    };
-  }, [normX, normY, moved]);
-
-  const color = useMemo(() => moodColorFor(normX, normY), [normX, normY]);
-  const emotion = useMemo(
-    () => (moved ? emotionFor(normX, normY) : "Take your time…"),
-    [moved, normX, normY],
-  );
-
-  const dragRadius = bounds.w / 2;
-  const orbSize = useTransform([x, y], ([vx, vy]: number[]) => {
-    const r = Math.hypot(vx as number, vy as number) / dragRadius;
-    return 150 + r * 30;
-  });
-
-  function confirm() {
-    onConfirm({
-      mood_x: normX,
-      mood_y: normY,
-      mood_color: color,
-      mood_label: emotion,
-    });
-  }
-
-  return (
-    <div className="absolute inset-0 flex flex-col items-center justify-between py-10 px-6">
-      <div className="text-center">
-        <p className="text-[10px] uppercase tracking-[0.5em] text-gold/70">Step 1 of 6</p>
-        <h2 className="mt-3 font-display text-2xl md:text-3xl tracking-tight">
-          Where are you, right now?
-        </h2>
-      </div>
-
-      {/* Drag area */}
-      <div className="relative flex-1 w-full max-w-md flex items-center justify-center my-6">
-        <div
-          ref={areaRef}
-          className="relative w-full aspect-square rounded-full"
-          style={{
-            background:
-              "radial-gradient(circle at center, rgba(201,168,76,0.06), transparent 70%)",
-            border: "1px dashed rgba(201,168,76,0.18)",
-          }}
+      <div className="mt-10 grid gap-3 sm:grid-cols-2">
+        <Link
+          to="/reflect"
+          className="rounded-[14px] p-5"
+          style={{ background: "#16161F", border: "1px solid rgba(240,201,106,0.2)" }}
         >
-          {/* Axis labels */}
-          <AxisLabel pos="top">Bright</AxisLabel>
-          <AxisLabel pos="bottom">Dark</AxisLabel>
-          <AxisLabel pos="left">Heavy</AxisLabel>
-          <AxisLabel pos="right">Alive</AxisLabel>
-
-          {/* Center crosshair */}
-          <div
-            aria-hidden
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-px w-12 bg-gold/15"
-          />
-          <div
-            aria-hidden
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-12 bg-gold/15"
-          />
-
-          {/* Floating mood word hints */}
-          <CornerWords corner="tr" active={normX > 0.3 && normY > 0.3} />
-          <CornerWords corner="tl" active={normX < -0.3 && normY > 0.3} />
-          <CornerWords corner="br" active={normX > 0.3 && normY < -0.3} />
-          <CornerWords corner="bl" active={normX < -0.3 && normY < -0.3} />
-
-          {/* The orb */}
-          <motion.div
-            drag
-            dragMomentum={false}
-            dragElastic={0.08}
-            dragConstraints={{
-              top: -dragRadius * 0.85,
-              bottom: dragRadius * 0.85,
-              left: -dragRadius * 0.85,
-              right: dragRadius * 0.85,
-            }}
-            onDragStart={() => setMoved(true)}
-            style={{
-              x,
-              y,
-              width: orbSize,
-              height: orbSize,
-              background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.35), ${color} 55%, rgba(0,0,0,0.4) 100%)`,
-              boxShadow: `0 0 60px 10px ${color}66, 0 0 140px 30px ${color}33, inset 0 -20px 40px rgba(0,0,0,0.45)`,
-            }}
-            className="absolute top-1/2 left-1/2 rounded-full cursor-grab active:cursor-grabbing -translate-x-1/2 -translate-y-1/2 touch-none"
-            whileDrag={{ scale: 1.04 }}
-            animate={!moved ? { scale: [1, 1.04, 1] } : undefined}
-            transition={
-              !moved
-                ? { duration: 3.2, repeat: Infinity, ease: "easeInOut" }
-                : undefined
-            }
-          />
-        </div>
-      </div>
-
-      {/* Detected emotion + CTA */}
-      <div className="text-center w-full max-w-sm">
-        <p className="text-[10px] uppercase tracking-[0.4em] text-muted-foreground">
-          You feel
-        </p>
-        <motion.p
-          key={emotion}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="mt-2 font-display text-2xl md:text-3xl text-gold-light italic"
-        >
-          {emotion}
-        </motion.p>
-
-        <AnimatePresence>
-          {showCta && (
-            <motion.button
-              key="cta"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5 }}
-              onClick={confirm}
-              className="mt-6 inline-flex items-center gap-2 px-6 py-3 rounded-[14px] text-sm tracking-[0.2em] uppercase text-gold-light"
-              style={{
-                border: "1px solid rgba(240,201,106,0.5)",
-                background:
-                  "linear-gradient(160deg, rgba(201,168,76,0.12), rgba(22,22,31,0.6))",
-                boxShadow: "0 10px 30px -10px rgba(240,201,106,0.35)",
-              }}
-            >
-              This feels right
-              <ArrowRight className="h-4 w-4" />
-            </motion.button>
-          )}
-        </AnimatePresence>
-
-        {!showCta && moved && (
-          <p className="mt-4 text-xs text-muted-foreground/70 italic">
-            Drag the orb until it matches.
+          <Sparkles className="h-4 w-4 text-gold-light" />
+          <p className="mt-2 font-display text-lg text-gold-light">Weekly reflection</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            The six-step session, whenever you want to go deeper.
           </p>
-        )}
-        {!moved && (
-          <p className="mt-4 text-xs text-muted-foreground/70 italic">
-            Drag the orb across the space.
-          </p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AxisLabel({
-  pos,
-  children,
-}: {
-  pos: "top" | "bottom" | "left" | "right";
-  children: React.ReactNode;
-}) {
-  const map = {
-    top: "top-2 left-1/2 -translate-x-1/2",
-    bottom: "bottom-2 left-1/2 -translate-x-1/2",
-    left: "left-2 top-1/2 -translate-y-1/2",
-    right: "right-2 top-1/2 -translate-y-1/2",
-  } as const;
-  return (
-    <span
-      className={`absolute ${map[pos]} text-[10px] uppercase tracking-[0.4em] text-gold/70`}
-    >
-      {children}
-    </span>
-  );
-}
-
-function CornerWords({
-  corner,
-  active,
-}: {
-  corner: "tr" | "tl" | "br" | "bl";
-  active: boolean;
-}) {
-  const words = MOOD_LABELS[corner];
-  const posMap: Record<string, string> = {
-    tr: "top-8 right-8 text-right",
-    tl: "top-8 left-8 text-left",
-    br: "bottom-8 right-8 text-right",
-    bl: "bottom-8 left-8 text-left",
-  };
-  return (
-    <motion.div
-      className={`absolute ${posMap[corner]} space-y-1 pointer-events-none`}
-      animate={{ opacity: active ? 1 : 0.18 }}
-      transition={{ duration: 0.5 }}
-    >
-      {words.map((w) => (
-        <div
-          key={w}
-          className="font-body text-xs italic text-gold-light/90"
-          style={{ textShadow: "0 0 12px rgba(240,201,106,0.4)" }}
+        </Link>
+        <Link
+          to="/alive"
+          className="rounded-[14px] p-5"
+          style={{ background: "#16161F", border: "1px solid rgba(240,201,106,0.2)" }}
         >
-          {w}
-        </div>
-      ))}
-    </motion.div>
-  );
-}
-
-/* ────────────────────────────── DONE PREVIEW ────────────────────────────── */
-function DonePreview({ session }: { session: SessionState | null }) {
-  if (!session) return null;
-  return (
-    <div className="max-w-md">
-      <div
-        className="mx-auto h-32 w-32 rounded-full mb-8"
-        style={{
-          background: `radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), ${session.mood_color} 55%, rgba(0,0,0,0.4) 100%)`,
-          boxShadow: `0 0 60px 10px ${session.mood_color}66`,
-        }}
-      />
-      <p className="text-[10px] uppercase tracking-[0.5em] text-gold/70 mb-3">
-        Captured
-      </p>
-      <h2 className="font-display text-3xl md:text-4xl tracking-tight">
-        You feel{" "}
-        <span className="italic text-gold-light">{session.mood_label}.</span>
-      </h2>
-      <p className="mt-4 text-muted-foreground italic">
-        The rest of your session continues from here.
-      </p>
+          <Waypoints className="h-4 w-4 text-gold-light" />
+          <p className="mt-2 font-display text-lg text-gold-light">What's alive</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your topics and intentions, in your own words.
+          </p>
+        </Link>
+      </div>
     </div>
   );
 }

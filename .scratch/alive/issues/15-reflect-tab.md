@@ -4,7 +4,7 @@
 
 **Blocked by:** 03
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Every session screen and animation works as before at /reflect
 - [ ] "Who you are becoming" shows supporting quotes with dates

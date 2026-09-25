@@ -321,7 +321,7 @@ function VaultPage() {
             <SkeletonGrid />
           ) : visible.length === 0 ? (
             <EmptyState
-              onBegin={() => navigate({ to: "/today" })}
+              onBegin={() => navigate({ to: "/reflect" })}
               hasSearch={!!debouncedSearch || filter !== "all"}
             />
           ) : (
@@ -810,11 +810,11 @@ function EmptyState({ onBegin, hasSearch }: { onBegin: () => void; hasSearch: bo
       </div>
       <p className="font-display text-2xl md:text-3xl text-gold-light">Your vault is empty.</p>
       <p className="mt-3 text-base text-muted-foreground italic max-w-xs mx-auto">
-        Your first story is one session away.
+        Tap the feather to capture your first moment.
       </p>
       <div className="mt-8 mx-auto max-w-xs">
         <GoldButton type="button" onClick={onBegin}>
-          Begin Today's Session
+          Begin a reflection
         </GoldButton>
       </div>
     </div>

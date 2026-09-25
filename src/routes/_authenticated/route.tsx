@@ -35,9 +35,10 @@ function AuthedLayout() {
           <Link to="/today" className="font-display text-xl tracking-[0.3em] text-gold">
             ALIVE
           </Link>
-          <nav className="flex items-center gap-6 text-sm text-muted-foreground">
+          <nav className="flex items-center gap-6 text-sm text-muted-foreground overflow-x-auto whitespace-nowrap ml-4 [scrollbar-width:none]">
             <Link to="/today" className="hover:text-gold-light transition-colors">Today</Link>
             <Link to="/alive" className="hover:text-gold-light transition-colors">Alive</Link>
+            <Link to="/reflect" className="hover:text-gold-light transition-colors">Reflect</Link>
             <Link to="/vault" className="hover:text-gold-light transition-colors">Vault</Link>
             <Link to="/timeline" className="hover:text-gold-light transition-colors">Timeline</Link>
             <Link to="/insights" className="hover:text-gold-light transition-colors">Insights</Link>

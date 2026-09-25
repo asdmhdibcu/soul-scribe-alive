@@ -35,9 +35,7 @@ const DiarySchema = z.object({
   ai_insight: z.string(),
   focus_word: z.string(),
   one_thing: z.string(),
-  energy_forecast: z.string(),
   relationship_nudge: z.string().nullable(),
-  body_signal: z.string().nullable(),
   morning_mission: z.string(),
   tonight_intention: z.string(),
 });
@@ -54,6 +52,8 @@ Use the exact emotions and situations they described. Make them feel deeply seen
 
 Write as if this is the most honest thing they've ever written.
 
+Never predict how a future day will feel. Never comment on health, the body, diagnoses or medical conditions.
+
 Return ONLY the structured JSON with these fields:
 - title: powerful 5-7 word title
 - content: full 3-4 paragraph diary entry, first person
@@ -62,9 +62,7 @@ Return ONLY the structured JSON with these fields:
 - ai_insight: one sharp observation about a pattern (max 25 words)
 - focus_word: one word for tomorrow
 - one_thing: most important action for tomorrow (one sentence)
-- energy_forecast: 2 sentence prediction for tomorrow
 - relationship_nudge: observation about relationships if relevant, otherwise null
-- body_signal: health/body observation if relevant, otherwise null
 - morning_mission: short morning ritual sentence
 - tonight_intention: short sentence for tonight before sleep`;
 
@@ -72,7 +70,6 @@ export const generateDiary = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((data: unknown) => Input.parse(data))
   .handler(async ({ data, context }) => {
-
     const { modelFor } = await import("./ai-router.server");
     const model = await modelFor({
       own: data.ai,
@@ -87,14 +84,21 @@ export const generateDiary = createServerFn({ method: "POST" })
 
     const ctx: string[] = [];
     ctx.push(`User name: ${data.name}`);
-    ctx.push(`Mood word: "${data.mood_label}" (x=${data.mood_x.toFixed(2)} where +x is alive, y=${data.mood_y.toFixed(2)} where +y is bright)`);
-    if (data.personal_notes) ctx.push(`✦ PRIORITY — They WROTE their story in their own words:\n"""\n${data.personal_notes}\n"""`);
-    if (data.user_voice_story) ctx.push(`✦ PRIORITY — They SPOKE their story aloud:\n"""\n${data.user_voice_story}\n"""`);
+    ctx.push(
+      `Mood word: "${data.mood_label}" (x=${data.mood_x.toFixed(2)} where +x is alive, y=${data.mood_y.toFixed(2)} where +y is bright)`,
+    );
+    if (data.personal_notes)
+      ctx.push(
+        `✦ PRIORITY — They WROTE their story in their own words:\n"""\n${data.personal_notes}\n"""`,
+      );
+    if (data.user_voice_story)
+      ctx.push(`✦ PRIORITY — They SPOKE their story aloud:\n"""\n${data.user_voice_story}\n"""`);
     if (up.length) ctx.push(`Felt MAJOR today: ${up.join("; ")}`);
     if (down.length) ctx.push(`Hurt them today: ${down.join("; ")}`);
     if (right.length) ctx.push(`Also true today: ${right.slice(0, 8).join("; ")}`);
     if (data.one_sentence) ctx.push(`One sentence they wrote: "${data.one_sentence}"`);
-    if (data.voice_transcript) ctx.push(`They said aloud (memory drop): "${data.voice_transcript}"`);
+    if (data.voice_transcript)
+      ctx.push(`They said aloud (memory drop): "${data.voice_transcript}"`);
     if (data.has_photo) ctx.push(`They shared a photo of today.`);
     if (data.question && data.answer) {
       ctx.push(`We asked them: "${data.question}"`);
@@ -112,19 +116,28 @@ export const generateDiary = createServerFn({ method: "POST" })
       return result.experimental_output as DiaryResult;
     } catch (err) {
       console.error("[diary] AI error", err);
+      // No invented words: without the AI, the page is the person's own words.
+      const ownWords = [
+        data.one_sentence,
+        data.voice_transcript,
+        data.answer,
+        data.personal_notes,
+        data.user_voice_story,
+      ]
+        .map((t) => (t ?? "").trim())
+        .filter(Boolean)
+        .join("\n\n");
       const fallback: DiaryResult = {
-        title: "A Day That Asked Something Of Me",
-        content: `Today landed in a way that's hard to name. ${data.one_sentence || data.answer || "There was weight, and there was light."}\n\nI felt ${data.mood_label.toLowerCase()} — not because of one thing, but because of the way things stacked. The small frictions, the unexpected softness, the slow becoming.\n\nI'm not sure what tomorrow will ask, but I know today already asked something of me. And I answered, even if quietly.`,
+        title: "Today, in your words",
+        content: ownWords || "Nothing written today, and that's fine.",
         mood_label: data.mood_label,
         mood_emoji: "✨",
-        ai_insight: "You name your feelings carefully. That is itself a form of self-respect.",
-        focus_word: "Presence",
-        one_thing: "Begin tomorrow with one small thing done before the noise begins.",
-        energy_forecast: "Tomorrow may feel slower than today. Use that softness.",
+        ai_insight: "",
+        focus_word: "",
+        one_thing: "",
         relationship_nudge: null,
-        body_signal: null,
-        morning_mission: "Two minutes of stillness before reaching for your phone.",
-        tonight_intention: "Let today rest. You did enough.",
+        morning_mission: "",
+        tonight_intention: "",
       };
       return fallback;
     }

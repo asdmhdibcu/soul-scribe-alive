@@ -453,10 +453,10 @@ function EmptyState() {
         Capture today and watch the patterns appear.
       </p>
       <Link
-        to="/today"
+        to="/reflect"
         className="inline-block rounded-full bg-gold px-6 py-3 text-background font-medium hover:bg-gold-light transition-colors"
       >
-        Begin Today's Session
+        Begin a reflection
       </Link>
     </div>
   );

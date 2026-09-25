@@ -187,20 +187,12 @@ export function DiaryPage({
           <FocusWordCard word={diary.focus_word} />
           <TomorrowCard icon="🎯" title="The One Thing" body={diary.one_thing} />
           <TomorrowCard
-            icon="📊"
-            title="Energy Forecast"
-            body={diary.energy_forecast}
-          />
-          <TomorrowCard
             icon="💭"
             title="Tonight's Intention"
             body={diary.tonight_intention}
           />
           {diary.relationship_nudge && (
             <TomorrowCard icon="🤍" title="Relationship Nudge" body={diary.relationship_nudge} />
-          )}
-          {diary.body_signal && (
-            <TomorrowCard icon="🌿" title="Body Signal" body={diary.body_signal} />
           )}
         </div>
           </>

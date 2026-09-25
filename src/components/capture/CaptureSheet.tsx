@@ -24,7 +24,7 @@ export function CaptureButton() {
   const [draft, setDraft] = useState<Draft>(EMPTY);
   // The full-screen reflection session has its own controls in that corner.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const hidden = pathname.startsWith("/today");
+  const hidden = pathname.startsWith("/reflect");
   const pendingCount = usePendingCount();
 
   async function save(d: Draft) {

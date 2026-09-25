@@ -100,10 +100,10 @@ function LifeBookPage() {
         </p>
         <div className="mt-6">
           <Link
-            to="/today"
+            to="/reflect"
             className="inline-flex items-center justify-center rounded-[14px] bg-gradient-gold px-8 py-3.5 font-medium text-primary-foreground tracking-wide shadow-premium hover:scale-[1.02] transition-transform"
           >
-            Today's Session
+            Reflect
           </Link>
         </div>
       </div>
