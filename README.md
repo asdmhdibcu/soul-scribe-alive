@@ -22,7 +22,8 @@ Live: https://soul-scribe-alive.lovable.app
 | Voice notes transcribed on the device (Whisper in the browser, any language) | Done, not yet tested on a real iPhone |
 | Offline capture: queued on the device, syncs when back online | Done |
 | Bring your own AI key (OpenAI, Anthropic, Google) or use Alive's AI on a paid plan | Done |
-| Six-step reflection session, Insights, "Who you are becoming" | Working on the new data |
+| Today home: morning brief, today's moments | Done |
+| Six-step reflection session (Reflect tab), Insights, "Who you are becoming" | Working on the new data |
 | Sorting into topics and intentions (What's alive page) | Done |
 | Reading text from attached PDFs, Word files and text files | Done (images are not read) |
 | Ask from the capture sheet, with dates linking to that day | Done |
