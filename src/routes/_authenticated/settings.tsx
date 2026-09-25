@@ -160,6 +160,13 @@ function SettingsPage() {
 
       <p className="mt-6 text-sm text-muted-foreground">
         <Link
+          to="/import"
+          className="text-gold hover:text-gold-light underline-offset-4 hover:underline"
+        >
+          Import old notes
+        </Link>
+        {" · "}
+        <Link
           to="/pricing"
           className="text-gold hover:text-gold-light underline-offset-4 hover:underline"
         >

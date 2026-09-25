@@ -4,7 +4,7 @@
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Pasted text and each supported file type import as moments
 - [ ] Original dates are kept when present

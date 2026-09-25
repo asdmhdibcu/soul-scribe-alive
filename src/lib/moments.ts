@@ -153,6 +153,10 @@ export type CaptureInput = {
   photos: File[];
   files: File[];
   audio?: Blob | null;
+  /** Stable ids for photos then files (imports), so re-importing never duplicates. */
+  fileIds?: string[];
+  /** Imported history: store it without sending it through AI filing. */
+  skipFiling?: boolean;
 };
 
 /** A capture after encryption: safe to keep on the device until it uploads. */
@@ -163,6 +167,7 @@ type SealedCapture = {
   kind: string;
   bodyEnc: string | null;
   audioPath: string | null;
+  skipFiling?: boolean;
   files: {
     id: string;
     path: string;
@@ -206,8 +211,8 @@ async function sealCapture(c: CaptureInput): Promise<SealedCapture> {
     ...(c.audio ? [{ blob: c.audio, name: "voice-note", kind: "audio" as const }] : []),
   ];
   const files = await Promise.all(
-    parts.map(async (p) => {
-      const id = crypto.randomUUID();
+    parts.map(async (p, i) => {
+      const id = c.fileIds?.[i] ?? crypto.randomUUID();
       const sealed = await encryptBlob(p.blob, key);
       const text = p.kind === "file" ? await readFileText(p.blob as File) : "";
       return {
@@ -235,6 +240,7 @@ async function sealCapture(c: CaptureInput): Promise<SealedCapture> {
     }),
     bodyEnc: text ? await encryptField(text) : null,
     audioPath: files.find((f) => f.kind === "audio")?.path ?? null,
+    skipFiling: c.skipFiling,
     files,
   };
 }
@@ -261,6 +267,7 @@ async function sendCapture(s: SealedCapture) {
     kind: s.kind,
     body_enc: s.bodyEnc,
     audio_path: s.audioPath,
+    sorted_at: s.skipFiling ? new Date().toISOString() : null,
   });
   if (momentErr && !isDuplicate(momentErr)) throw momentErr;
   if (s.files.length) {
@@ -343,4 +350,17 @@ export async function saveDayReview(day: string, review: string) {
       { onConflict: "user_id,date" },
     );
   if (error) throw error;
+}
+
+/** Which of these moment ids already exist (to skip on re-import). */
+export async function existingMomentIds(ids: string[]): Promise<Set<string>> {
+  const found = new Set<string>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase
+      .from("moments")
+      .select("id")
+      .in("id", ids.slice(i, i + 200));
+    for (const r of data ?? []) found.add(r.id);
+  }
+  return found;
 }

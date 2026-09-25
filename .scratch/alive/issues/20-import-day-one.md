@@ -4,7 +4,7 @@
 
 **Blocked by:** 19
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] A Day One export imports all entries with original dates
 - [ ] Photos come across encrypted

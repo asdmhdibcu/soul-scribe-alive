@@ -22,6 +22,7 @@ import { Route as AuthenticatedReflectRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
 import { Route as AuthenticatedLifeBookRouteImport } from './routes/_authenticated/life-book'
 import { Route as AuthenticatedInsightsRouteImport } from './routes/_authenticated/insights'
+import { Route as AuthenticatedImportRouteImport } from './routes/_authenticated/import'
 import { Route as AuthenticatedCoachRouteImport } from './routes/_authenticated/coach'
 import { Route as AuthenticatedAliveRouteImport } from './routes/_authenticated/alive'
 
@@ -89,6 +90,11 @@ const AuthenticatedInsightsRoute = AuthenticatedInsightsRouteImport.update({
   path: '/insights',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedImportRoute = AuthenticatedImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedCoachRoute = AuthenticatedCoachRouteImport.update({
   id: '/coach',
   path: '/coach',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/pricing': typeof PricingRoute
   '/alive': typeof AuthenticatedAliveRoute
   '/coach': typeof AuthenticatedCoachRoute
+  '/import': typeof AuthenticatedImportRoute
   '/insights': typeof AuthenticatedInsightsRoute
   '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/pricing': typeof PricingRoute
   '/alive': typeof AuthenticatedAliveRoute
   '/coach': typeof AuthenticatedCoachRoute
+  '/import': typeof AuthenticatedImportRoute
   '/insights': typeof AuthenticatedInsightsRoute
   '/life-book': typeof AuthenticatedLifeBookRoute
   '/onboarding': typeof AuthenticatedOnboardingRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/pricing': typeof PricingRoute
   '/_authenticated/alive': typeof AuthenticatedAliveRoute
   '/_authenticated/coach': typeof AuthenticatedCoachRoute
+  '/_authenticated/import': typeof AuthenticatedImportRoute
   '/_authenticated/insights': typeof AuthenticatedInsightsRoute
   '/_authenticated/life-book': typeof AuthenticatedLifeBookRoute
   '/_authenticated/onboarding': typeof AuthenticatedOnboardingRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/alive'
     | '/coach'
+    | '/import'
     | '/insights'
     | '/life-book'
     | '/onboarding'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/alive'
     | '/coach'
+    | '/import'
     | '/insights'
     | '/life-book'
     | '/onboarding'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
     | '/pricing'
     | '/_authenticated/alive'
     | '/_authenticated/coach'
+    | '/_authenticated/import'
     | '/_authenticated/insights'
     | '/_authenticated/life-book'
     | '/_authenticated/onboarding'
@@ -303,6 +315,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedInsightsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/import': {
+      id: '/_authenticated/import'
+      path: '/import'
+      fullPath: '/import'
+      preLoaderRoute: typeof AuthenticatedImportRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/coach': {
       id: '/_authenticated/coach'
       path: '/coach'
@@ -323,6 +342,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAliveRoute: typeof AuthenticatedAliveRoute
   AuthenticatedCoachRoute: typeof AuthenticatedCoachRoute
+  AuthenticatedImportRoute: typeof AuthenticatedImportRoute
   AuthenticatedInsightsRoute: typeof AuthenticatedInsightsRoute
   AuthenticatedLifeBookRoute: typeof AuthenticatedLifeBookRoute
   AuthenticatedOnboardingRoute: typeof AuthenticatedOnboardingRoute
@@ -336,6 +356,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAliveRoute: AuthenticatedAliveRoute,
   AuthenticatedCoachRoute: AuthenticatedCoachRoute,
+  AuthenticatedImportRoute: AuthenticatedImportRoute,
   AuthenticatedInsightsRoute: AuthenticatedInsightsRoute,
   AuthenticatedLifeBookRoute: AuthenticatedLifeBookRoute,
   AuthenticatedOnboardingRoute: AuthenticatedOnboardingRoute,
