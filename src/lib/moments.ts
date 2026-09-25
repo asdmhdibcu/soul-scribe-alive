@@ -332,3 +332,15 @@ export async function saveTranscript(momentId: string, typed: string, transcript
   });
   await flush();
 }
+
+/** Saves the day's evening record (own words in time order) to the day row. */
+export async function saveDayReview(day: string, review: string) {
+  const userId = await currentUserId();
+  const { error } = await supabase
+    .from("days")
+    .upsert(
+      { user_id: userId, date: day, review_enc: await encryptField(review) },
+      { onConflict: "user_id,date" },
+    );
+  if (error) throw error;
+}

@@ -2,7 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Feather, Mic, Sparkles, Waypoints } from "lucide-react";
 import { BriefCard } from "@/components/brief/BriefCard";
-import { loadDaysWritten, loadMoments, MOMENT_SAVED_EVENT, type Moment } from "@/lib/moments";
+import {
+  loadDaysWritten,
+  loadMoments,
+  MOMENT_SAVED_EVENT,
+  saveCapture,
+  saveDayReview,
+  type Moment,
+} from "@/lib/moments";
+import { compileDay } from "@/lib/writing-stats";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/today")({
   head: () => ({ meta: [{ title: "Today — ALIVE" }] }),
@@ -16,12 +25,22 @@ export const Route = createFileRoute("/_authenticated/today")({
 function TodayHome() {
   const [moments, setMoments] = useState<Moment[] | null>(null);
   const [written, setWritten] = useState<number | null>(null);
+  const [addition, setAddition] = useState("");
+  const [saving, setSaving] = useState(false);
   const today = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     const load = () => {
       void loadMoments({ sinceDay: today })
-        .then((all) => setMoments(all.filter((m) => m.day === today).reverse()))
+        .then((all) => {
+          const todays = all.filter((m) => m.day === today).reverse();
+          setMoments(todays);
+          // Keep the day's evening record in step: own words, in time order.
+          const review = compileDay(todays, (iso) =>
+            new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }),
+          );
+          if (review) void saveDayReview(today, review).catch(() => {});
+        })
         .catch(() => setMoments([]));
       void loadDaysWritten(30)
         .then(setWritten)
@@ -98,6 +117,47 @@ function TodayHome() {
             ))}
           </ol>
         )}
+      </section>
+
+      <section className="mt-8">
+        <label htmlFor="add" className="text-[10px] uppercase tracking-[0.4em] text-gold-light/80">
+          Anything to add?
+        </label>
+        <textarea
+          id="add"
+          value={addition}
+          onChange={(e) => setAddition(e.target.value)}
+          rows={3}
+          placeholder="A last thought before the day ends…"
+          className="mt-3 w-full resize-none rounded-[14px] bg-[#0A0A0F] p-4 text-[16px] leading-relaxed outline-none"
+          style={{ fontFamily: "Georgia, serif", border: "1px solid rgba(240,201,106,0.18)" }}
+        />
+        <button
+          type="button"
+          disabled={saving || !addition.trim()}
+          onClick={async () => {
+            setSaving(true);
+            try {
+              await saveCapture({
+                id: crypto.randomUUID(),
+                capturedAt: new Date().toISOString(),
+                text: addition,
+                photos: [],
+                files: [],
+              });
+              setAddition("");
+              toast.success("Added to today.");
+            } catch {
+              toast.error("Could not save. Your words are still in the box.");
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="mt-3 h-11 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] text-background disabled:opacity-40"
+          style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
+        >
+          Save
+        </button>
       </section>
 
       <div className="mt-10 grid gap-3 sm:grid-cols-2">

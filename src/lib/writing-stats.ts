@@ -68,3 +68,18 @@ export function buildDayEntries(
       };
     });
 }
+
+/**
+ * The evening record of a day: the person's own words in time order, each
+ * with its time. A derived view (regenerable); nothing is rewritten.
+ */
+export function compileDay(
+  moments: { capturedAt: string; text: string | null }[],
+  time: (iso: string) => string,
+): string {
+  return [...moments]
+    .filter((m) => m.text?.trim())
+    .sort((a, b) => a.capturedAt.localeCompare(b.capturedAt))
+    .map((m) => `${time(m.capturedAt)} — ${m.text!.trim()}`)
+    .join("\n\n");
+}

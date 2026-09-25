@@ -4,7 +4,7 @@
 
 **Blocked by:** 04, 15
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Today's moments appear in time order
 - [ ] The add box saves a new moment

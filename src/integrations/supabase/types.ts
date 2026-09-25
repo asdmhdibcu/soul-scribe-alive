@@ -143,6 +143,7 @@ export type Database = {
           id: string
           mood_enc: string | null
           rendered_enc: string | null
+          review_enc: string | null
           user_id: string
         }
         Insert: {
@@ -152,6 +153,7 @@ export type Database = {
           id?: string
           mood_enc?: string | null
           rendered_enc?: string | null
+          review_enc?: string | null
           user_id: string
         }
         Update: {
@@ -161,6 +163,7 @@ export type Database = {
           id?: string
           mood_enc?: string | null
           rendered_enc?: string | null
+          review_enc?: string | null
           user_id?: string
         }
         Relationships: []
