@@ -9,7 +9,7 @@ import {
   requireMasterKey,
 } from "@/lib/crypto";
 import { daysWrittenInLast, type DayMood } from "@/lib/writing-stats";
-import { toMoment, type Moment, type MomentRow } from "@/lib/moments-model";
+import { prepareTextMoment, toMoment, type Moment, type MomentRow } from "@/lib/moments-model";
 
 export type { Moment } from "@/lib/moments-model";
 export { filterMoments, momentsForAi, quotesInMoments } from "@/lib/moments-model";
@@ -122,4 +122,23 @@ export async function loadDayMoods(): Promise<Record<string, DayMood>> {
     if (r.mood_enc) out[r.date as string] = await decryptJson<DayMood>(r.mood_enc, null);
   }
   return out;
+}
+
+/** Fired after a capture is stored, so open pages (e.g. the Vault) can refresh. */
+export const MOMENT_SAVED_EVENT = "alive:moment-saved";
+
+/** Encrypts typed text on this device and stores it as a new moment. */
+export async function saveTextMoment(text: string) {
+  const prepared = prepareTextMoment(text, new Date());
+  if (!prepared) return;
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("Not signed in");
+  const { error } = await supabase.from("moments").insert({
+    user_id: u.user.id,
+    captured_at: prepared.captured_at,
+    kind: prepared.kind,
+    body_enc: await encryptField(prepared.text),
+  });
+  if (error) throw error;
+  window.dispatchEvent(new Event(MOMENT_SAVED_EVENT));
 }

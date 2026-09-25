@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { clearMasterKey } from "@/lib/crypto";
 import { useVaultUnlocked } from "@/lib/vault-session";
 import { UnlockScreen } from "@/components/auth/UnlockScreen";
+import { CaptureButton } from "@/components/capture/CaptureSheet";
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -50,6 +51,7 @@ function AuthedLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+      <CaptureButton />
     </div>
   );
 }

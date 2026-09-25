@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -25,6 +25,7 @@ import {
   filterMoments,
   loadDaysWritten,
   loadMoments,
+  MOMENT_SAVED_EVENT,
   momentsForAi,
   openMedia,
   type Moment,
@@ -128,6 +129,16 @@ function VaultPage() {
         setLoading(false);
       }
     })();
+  }, [unlimitedVault, vaultCapDate]);
+
+  // A capture saved from the floating button shows up here straight away.
+  useEffect(() => {
+    const reload = () =>
+      loadMoments({ sinceDay: unlimitedVault ? undefined : vaultCapDate })
+        .then(setEntries)
+        .catch(() => {});
+    window.addEventListener(MOMENT_SAVED_EVENT, reload);
+    return () => window.removeEventListener(MOMENT_SAVED_EVENT, reload);
   }, [unlimitedVault, vaultCapDate]);
 
   useEffect(() => setShown(PAGE_SIZE), [filter, debouncedSearch]);
@@ -446,17 +457,6 @@ function VaultPage() {
         )}
       </AnimatePresence>
 
-      {/* Floating begin session */}
-      <Link
-        to="/today"
-        className="fixed bottom-6 right-6 z-40 h-14 px-6 rounded-full flex items-center gap-2 text-sm tracking-[0.18em] uppercase text-background font-medium shadow-lg"
-        style={{
-          background: "linear-gradient(135deg, #F0C96A, #C9A84C)",
-          boxShadow: "0 14px 40px -10px rgba(240,201,106,0.55)",
-        }}
-      >
-        Today's Session
-      </Link>
     </div>
   );
 }

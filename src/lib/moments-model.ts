@@ -80,3 +80,13 @@ export function quotesInMoments(quotes: string[], list: Moment[]): string[] {
   const texts = list.map((m) => m.text ?? "");
   return quotes.filter((q) => q.trim() && texts.some((t) => t.includes(q.trim())));
 }
+
+/**
+ * A new text moment from the capture sheet. Raw is canonical: the text is
+ * stored exactly as typed (never trimmed or edited); only an all-whitespace
+ * capture is refused.
+ */
+export function prepareTextMoment(text: string, now: Date) {
+  if (!text.trim()) return null;
+  return { kind: "text" as const, captured_at: now.toISOString(), text };
+}
