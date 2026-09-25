@@ -7,34 +7,38 @@ import { supabase } from "@/integrations/supabase/client";
 export function BriefSettings() {
   const [hour, setHour] = useState(7);
   const [email, setEmail] = useState(true);
+  const [coach, setCoach] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   useEffect(() => {
     void supabase
       .from("user_prefs")
-      .select("brief_hour, brief_email")
+      .select("brief_hour, brief_email, coach_in_brief")
       .maybeSingle()
       .then(({ data }) => {
         if (data) {
           setHour(data.brief_hour);
           setEmail(data.brief_email);
+          setCoach(data.coach_in_brief);
         }
         setLoaded(true);
       });
   }, []);
 
-  async function save(next: { hour?: number; email?: boolean }) {
+  async function save(next: { hour?: number; email?: boolean; coach?: boolean }) {
     const h = next.hour ?? hour;
     const e = next.email ?? email;
+    const c = next.coach ?? coach;
     setHour(h);
     setEmail(e);
+    setCoach(c);
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const { error } = await supabase
       .from("user_prefs")
       .upsert(
-        { user_id: u.user.id, brief_hour: h, brief_email: e, timezone },
+        { user_id: u.user.id, brief_hour: h, brief_email: e, coach_in_brief: c, timezone },
         { onConflict: "user_id" },
       );
     if (error) toast.error("Could not save.");
@@ -79,6 +83,16 @@ export function BriefSettings() {
             className="h-4 w-4 accent-[#C9A84C]"
           />
           Email me when it's ready
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground/85">
+          <input
+            type="checkbox"
+            checked={coach}
+            disabled={!loaded}
+            onChange={(e) => void save({ coach: e.target.checked })}
+            className="h-4 w-4 accent-[#C9A84C]"
+          />
+          One Coach line in the brief
         </label>
       </div>
       <p className="mt-3 text-xs text-muted-foreground leading-relaxed">

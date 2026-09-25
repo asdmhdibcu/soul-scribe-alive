@@ -33,3 +33,21 @@ export function recentWindow(today: string, days = 14) {
   from.setUTCDate(from.getUTCDate() - (days - 1));
   return { from: from.toISOString().slice(0, 10), to: today };
 }
+
+export type CoachItem = { text: string; citedDate: string; quote: string };
+
+const HEALTH =
+  /\b(diagnos|disorder|depress|anxiety|adhd|therapy|medicat|symptom|illness|disease|mental health)/i;
+
+/**
+ * Coach suggestions follow the same citation law as the brief, plus no
+ * health talk. `max` is 1 for the brief's Coach line.
+ */
+export function validateCoach(items: CoachItem[], sources: BriefSource[], max: number) {
+  return validateBrief(
+    items.filter((i) => !HEALTH.test(i.text)).map((i) => ({ ...i, kind: "coach" })),
+    sources,
+  )
+    .slice(0, max)
+    .map(({ text, citedDate, quote }) => ({ text, citedDate, quote }));
+}

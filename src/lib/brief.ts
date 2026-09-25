@@ -4,6 +4,7 @@ import { loadOwnAi } from "@/lib/ai-client";
 import { loadMoments } from "@/lib/moments";
 import { loadThreadDetails } from "@/lib/sorter";
 import { generateBrief } from "@/lib/brief.functions";
+import { coachInBrief, coachSuggestions } from "@/lib/coach";
 import {
   echoDay,
   recentWindow,
@@ -88,20 +89,23 @@ export async function buildBrief(forDate: string): Promise<Brief | null> {
     ),
   ];
   const items = validateBrief(raw.items, sources);
+  // At most one Coach line, only if the person hasn't switched it off.
+  if (await coachInBrief().catch(() => false)) {
+    const [line] = await coachSuggestions(1, forDate).catch(() => []);
+    if (line) items.push({ kind: "coach", ...line });
+  }
 
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in");
-  const { error } = await supabase
-    .from("briefs")
-    .upsert(
-      {
-        user_id: u.user.id,
-        for_date: forDate,
-        items_enc: await encryptJson(items),
-        opened_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,for_date" },
-    );
+  const { error } = await supabase.from("briefs").upsert(
+    {
+      user_id: u.user.id,
+      for_date: forDate,
+      items_enc: await encryptJson(items),
+      opened_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,for_date" },
+  );
   if (error) throw error;
   return { forDate, items, useful: [] };
 }

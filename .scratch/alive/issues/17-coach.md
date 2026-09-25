@@ -4,7 +4,7 @@
 
 **Blocked by:** 10, 13
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Coach content appears only in the Coach tab and at most one brief line
 - [ ] Every suggestion quotes the person's words with dates

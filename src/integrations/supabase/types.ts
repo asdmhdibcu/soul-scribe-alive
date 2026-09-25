@@ -520,6 +520,7 @@ export type Database = {
           ai_model: string | null
           ai_provider: string | null
           brief_email: boolean
+          coach_in_brief: boolean
           brief_hour: number
           last_brief_email_on: string | null
           mood_enabled: boolean
@@ -531,6 +532,7 @@ export type Database = {
           ai_model?: string | null
           ai_provider?: string | null
           brief_email?: boolean
+          coach_in_brief?: boolean
           brief_hour?: number
           last_brief_email_on?: string | null
           mood_enabled?: boolean
@@ -542,6 +544,7 @@ export type Database = {
           ai_model?: string | null
           ai_provider?: string | null
           brief_email?: boolean
+          coach_in_brief?: boolean
           brief_hour?: number
           last_brief_email_on?: string | null
           mood_enabled?: boolean
