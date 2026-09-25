@@ -1,33 +1,43 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
-import { Feather, X } from "lucide-react";
+import { Feather, ImagePlus, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
-import { saveTextMoment } from "@/lib/moments";
+import { loadStorageUsed, saveCapture, storageLimitFor } from "@/lib/moments";
+import { formatBytes, MAX_PHOTOS, splitAttachments, storageCheck } from "@/lib/capture-model";
+import { usePlan } from "@/lib/plan";
+
+type Draft = { text: string; photos: File[]; files: File[] };
+const EMPTY: Draft = { text: "", photos: [], files: [] };
 
 /**
  * Capture anytime: one floating button on every signed-in page opens a sheet
- * with a single optional textarea. Nothing is required: no mood, no prompt.
+ * with a textarea, up to three photos and any files. Nothing is required.
  * The sheet closes the moment Save is tapped; encryption and upload happen
- * in the background. If saving fails, the text comes back so nothing is lost.
+ * in the background. If saving fails, the draft comes back so nothing is lost.
  */
 export function CaptureButton() {
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState("");
+  const [draft, setDraft] = useState<Draft>(EMPTY);
   // The full-screen reflection session has its own controls in that corner.
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const hidden = pathname.startsWith("/today");
 
-  async function save() {
-    const draft = text;
-    setText("");
+  async function save(d: Draft) {
+    setDraft(EMPTY);
     setOpen(false);
     try {
-      await saveTextMoment(draft);
+      await saveCapture({
+        id: crypto.randomUUID(),
+        capturedAt: new Date().toISOString(),
+        text: d.text,
+        photos: d.photos,
+        files: d.files,
+      });
       toast.success("Saved.");
     } catch (e) {
       console.error(e);
-      setText(draft);
-      toast.error("Could not save. Your words are still in the sheet.", {
+      setDraft(d);
+      toast.error("Could not save. Your capture is still in the sheet.", {
         action: { label: "Open", onClick: () => setOpen(true) },
       });
     }
@@ -50,35 +60,71 @@ export function CaptureButton() {
         <Feather className="h-6 w-6" />
       </button>
       {open && (
-        <CaptureSheet text={text} onChange={setText} onSave={save} onClose={() => setOpen(false)} />
+        <CaptureSheet
+          draft={draft}
+          onChange={setDraft}
+          onSave={save}
+          onClose={() => setOpen(false)}
+        />
       )}
     </>
   );
 }
 
 function CaptureSheet({
-  text,
+  draft,
   onChange,
   onSave,
   onClose,
 }: {
-  text: string;
-  onChange: (t: string) => void;
-  onSave: () => void;
+  draft: Draft;
+  onChange: (d: Draft) => void;
+  onSave: (d: Draft) => void;
   onClose: () => void;
 }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
-  const canSave = text.trim().length > 0;
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const { plan } = usePlan();
+  const limit = storageLimitFor(plan);
+  const [used, setUsed] = useState<number | null>(null);
+
+  const addBytes = [...draft.photos, ...draft.files].reduce((n, f) => n + f.size, 0);
+  const check = used === null ? null : storageCheck(used, addBytes, limit);
+  const hasContent = Boolean(draft.text.trim() || draft.photos.length || draft.files.length);
+  const canSave = hasContent && check?.ok !== false;
 
   useEffect(() => {
     // Autofocus on desktop only; on phones it would pop the keyboard over the sheet.
-    if (window.matchMedia("(pointer: fine)").matches) ref.current?.focus();
+    if (window.matchMedia("(pointer: fine)").matches) textRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
+    loadStorageUsed()
+      .then(setUsed)
+      .catch(() => setUsed(null));
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  function add(list: FileList | null) {
+    if (!list) return;
+    const { photos, files, extraPhotos } = splitAttachments([
+      ...draft.photos,
+      ...draft.files,
+      ...Array.from(list),
+    ]);
+    if (extraPhotos) toast.message(`Up to ${MAX_PHOTOS} photos per moment.`);
+    onChange({ ...draft, photos, files });
+  }
+
+  function remove(f: File) {
+    onChange({
+      ...draft,
+      photos: draft.photos.filter((p) => p !== f),
+      files: draft.files.filter((p) => p !== f),
+    });
+  }
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/70" onClick={onClose}>
@@ -106,21 +152,89 @@ function CaptureSheet({
             <X className="h-4 w-4" />
           </button>
         </div>
+
         <textarea
-          ref={ref}
-          value={text}
-          onChange={(e) => onChange(e.target.value)}
+          ref={textRef}
+          value={draft.text}
+          onChange={(e) => onChange({ ...draft, text: e.target.value })}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) onSave();
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && canSave) onSave(draft);
           }}
           placeholder="What's on your mind?"
-          rows={6}
+          rows={5}
           className="mt-3 w-full resize-none rounded-[14px] bg-[#0A0A0F] p-4 text-[17px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/60"
           style={{ fontFamily: "Georgia, serif", border: "1px solid rgba(240,201,106,0.18)" }}
         />
+
+        {(draft.photos.length > 0 || draft.files.length > 0) && (
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {[...draft.photos, ...draft.files].map((f, i) => (
+              <li
+                key={`${f.name}-${i}`}
+                className="flex items-center gap-2 rounded-full px-3 h-8 text-xs text-foreground/85"
+                style={{ border: "1px solid rgba(240,201,106,0.25)", background: "#0A0A0F" }}
+              >
+                <span className="max-w-[160px] truncate">{f.name}</span>
+                <span className="text-muted-foreground">{formatBytes(f.size)}</span>
+                <button
+                  type="button"
+                  onClick={() => remove(f)}
+                  aria-label={`Remove ${f.name}`}
+                  className="text-muted-foreground hover:text-gold-light"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            ref={photoInput}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              add(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <input
+            ref={fileInput}
+            type="file"
+            multiple
+            hidden
+            onChange={(e) => {
+              add(e.target.files);
+              e.target.value = "";
+            }}
+          />
+          <IconButton
+            label="Add photos"
+            onClick={() => photoInput.current?.click()}
+            disabled={draft.photos.length >= MAX_PHOTOS}
+          >
+            <ImagePlus className="h-5 w-5" />
+          </IconButton>
+          <IconButton label="Add files" onClick={() => fileInput.current?.click()}>
+            <Paperclip className="h-5 w-5" />
+          </IconButton>
+          {used !== null && (
+            <p
+              className={`ml-auto text-[11px] ${check?.ok === false ? "text-red-300" : "text-muted-foreground"}`}
+            >
+              {check?.ok === false
+                ? `Not enough space: ${formatBytes(check.remainingBytes)} left of ${formatBytes(limit)}`
+                : `${formatBytes(used + addBytes)} of ${formatBytes(limit)} used`}
+            </p>
+          )}
+        </div>
+
         <button
           type="button"
-          onClick={onSave}
+          onClick={() => onSave(draft)}
           disabled={!canSave}
           className="mt-4 h-12 w-full rounded-[14px] text-sm uppercase tracking-[0.2em] font-medium text-background disabled:opacity-40"
           style={{ background: "linear-gradient(135deg, #F0C96A, #C9A84C)" }}
@@ -129,5 +243,31 @@ function CaptureSheet({
         </button>
       </div>
     </div>
+  );
+}
+
+function IconButton({
+  label,
+  onClick,
+  disabled,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      disabled={disabled}
+      className="h-11 w-11 rounded-full flex items-center justify-center text-gold-light disabled:opacity-40"
+      style={{ border: "1px solid rgba(240,201,106,0.3)", background: "#0A0A0F" }}
+    >
+      {children}
+    </button>
   );
 }

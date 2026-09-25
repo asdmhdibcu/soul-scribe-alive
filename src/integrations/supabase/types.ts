@@ -315,6 +315,50 @@ export type Database = {
           },
         ]
       }
+      moment_files: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          mime_enc: string | null
+          moment_id: string
+          name_enc: string | null
+          path: string
+          size_bytes: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          mime_enc?: string | null
+          moment_id: string
+          name_enc?: string | null
+          path: string
+          size_bytes?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          mime_enc?: string | null
+          moment_id?: string
+          name_enc?: string | null
+          path?: string
+          size_bytes?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moment_files_moment_id_fkey"
+            columns: ["moment_id"]
+            isOneToOne: false
+            referencedRelation: "moments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       moments: {
         Row: {
           audio_path: string | null

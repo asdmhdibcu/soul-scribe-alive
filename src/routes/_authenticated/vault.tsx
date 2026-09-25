@@ -8,6 +8,7 @@ import {
   CalendarDays,
   ImageIcon,
   Mic,
+  Paperclip,
   Search,
   Sparkles,
   Star,
@@ -20,8 +21,10 @@ import { GoldButton } from "@/components/auth/AuthShell";
 import { askMemory } from "@/lib/memory-search.functions";
 import { usePlan, FREE_LIMITS } from "@/lib/plan";
 import { InlineLock } from "@/components/UpgradeGate";
+import { formatBytes } from "@/lib/capture-model";
 import {
   deleteMoment,
+  downloadAttachment,
   filterMoments,
   loadDaysWritten,
   loadMoments,
@@ -589,6 +592,9 @@ function EntryCard({
             <div className="flex items-center gap-1.5 text-gold-light/70">
               {entry.hasAudio && <Mic className="h-3 w-3" aria-label="Voice" />}
               {entry.hasPhoto && <ImageIcon className="h-3 w-3" aria-label="Photo" />}
+              {entry.attachments.some((a) => a.kind === "file") && (
+                <Paperclip className="h-3 w-3" aria-label="File" />
+              )}
             </div>
           </div>
 
@@ -765,6 +771,35 @@ function EntryModal({
             />
           )}
 
+          {entry.attachments
+            .filter((a) => a.kind === "photo")
+            .map((a) => (
+              <AttachmentPhoto key={a.id} path={a.path} mime={a.mime} />
+            ))}
+
+          {entry.attachments.some((a) => a.kind === "file") && (
+            <ul className="mt-8 space-y-2">
+              {entry.attachments
+                .filter((a) => a.kind === "file")
+                .map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        downloadAttachment(a).catch(() => toast.error("Could not open the file."))
+                      }
+                      className="w-full flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm text-foreground/85 hover:text-gold-light"
+                      style={{ border: "1px solid rgba(240,201,106,0.2)", background: "#16161F" }}
+                    >
+                      <Paperclip className="h-4 w-4 text-gold-light/80 shrink-0" />
+                      <span className="flex-1 truncate">{a.name}</span>
+                      <span className="text-xs text-muted-foreground">{formatBytes(a.size)}</span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          )}
+
           <div className="mt-10 mb-12" />
         </div>
       </motion.div>
@@ -840,7 +875,21 @@ function momentLabel(m: Moment) {
   if (m.decryptFailed) return "Sealed moment";
   if (m.kind === "voice") return "Voice note";
   if (m.kind === "photo" && !m.text) return "Photo";
+  if (m.kind === "file" && !m.text) return m.attachments[0]?.name ?? "File";
   return "Written";
+}
+
+function AttachmentPhoto({ path, mime }: { path: string; mime: string }) {
+  const url = useMediaUrl(path, mime);
+  if (!url) return null;
+  return (
+    <img
+      src={url}
+      alt="Memory"
+      className="mt-6 w-full rounded-2xl"
+      style={{ boxShadow: "0 0 0 1px rgba(240,201,106,0.18)" }}
+    />
+  );
 }
 
 /** Decrypts a stored photo or recording on demand; revokes the URL on close. */

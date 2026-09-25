@@ -4,7 +4,7 @@
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Up to 3 photos and any number of files per capture
 - [ ] Uploaded media and files are encrypted before leaving the device

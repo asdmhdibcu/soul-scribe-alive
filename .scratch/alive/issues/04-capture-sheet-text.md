@@ -4,7 +4,7 @@
 
 **Blocked by:** 02
 
-**Status:** in-review (branch claude/04-capture-sheet)
+**Status:** done
 
 - [ ] Floating button visible on every signed-in page
 - [ ] Textarea placeholder "What's on your mind?"; save enabled only when there is content

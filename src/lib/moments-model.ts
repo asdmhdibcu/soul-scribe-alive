@@ -3,7 +3,25 @@
  * No imports on purpose: this is the pure core, tested directly.
  */
 
-export type MomentKind = "text" | "voice" | "photo";
+export type MomentKind = "text" | "voice" | "photo" | "file";
+
+export type AttachmentRow = {
+  id: string;
+  path: string;
+  kind: string;
+  name_enc: string | null;
+  mime_enc: string | null;
+  size_bytes: number;
+};
+
+export type Attachment = {
+  id: string;
+  path: string;
+  kind: "photo" | "file";
+  name: string;
+  mime: string;
+  size: number;
+};
 
 export type MomentRow = {
   id: string;
@@ -12,6 +30,7 @@ export type MomentRow = {
   body_enc: string | null;
   audio_path: string | null;
   photo_path: string | null;
+  moment_files?: AttachmentRow[] | null;
 };
 
 export type Moment = {
@@ -28,6 +47,7 @@ export type Moment = {
   hasPhoto: boolean;
   audioPath: string | null;
   photoPath: string | null;
+  attachments: Attachment[];
 };
 
 /** `open` returns the plaintext, or null if decryption failed. */
@@ -36,7 +56,21 @@ export async function toMoment(
   open: (payload: string) => Promise<string | null>,
 ): Promise<Moment> {
   const text = row.body_enc ? await open(row.body_enc) : null;
-  const kind: MomentKind = row.kind === "voice" || row.kind === "photo" ? row.kind : "text";
+  const kind: MomentKind =
+    row.kind === "voice" || row.kind === "photo" || row.kind === "file" ? row.kind : "text";
+  // Audio rows exist only for storage accounting; the recording is audio_path.
+  const attachments = await Promise.all(
+    (row.moment_files ?? [])
+      .filter((a) => a.kind !== "audio")
+      .map(async (a) => ({
+        id: a.id,
+        path: a.path,
+        kind: (a.kind === "photo" ? "photo" : "file") as "photo" | "file",
+        name: (a.name_enc && (await open(a.name_enc))) || "Attachment",
+        mime: (a.mime_enc && (await open(a.mime_enc))) || "application/octet-stream",
+        size: a.size_bytes,
+      })),
+  );
   return {
     id: row.id,
     capturedAt: row.captured_at,
@@ -45,9 +79,10 @@ export async function toMoment(
     text,
     decryptFailed: Boolean(row.body_enc) && text === null,
     hasAudio: Boolean(row.audio_path),
-    hasPhoto: Boolean(row.photo_path),
+    hasPhoto: Boolean(row.photo_path) || attachments.some((a) => a.kind === "photo"),
     audioPath: row.audio_path,
     photoPath: row.photo_path,
+    attachments,
   };
 }
 
